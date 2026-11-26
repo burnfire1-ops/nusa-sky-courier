@@ -5,7 +5,8 @@
 // aligned with the strip, above the threshold, hull intact.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { stageShot } from '../game/src/shots.js';
+import { stageShot, autopilotTo } from '../game/src/shots.js';
+import { createWorld } from '../game/src/world.js';
 
 test('landing shot freezes on final over the runway', () => {
   const { world } = stageShot('landing', 1);
@@ -31,4 +32,30 @@ test('play shot is staged for cockpit view, other shots are chase', () => {
   assert.equal(stageShot('start', 1).cockpit, false);
   assert.equal(stageShot('landing', 1).cockpit, false);
   assert.equal(stageShot('end', 1).cockpit, false);
+});
+
+// M12-clean N6: autopilotTo was untested (only stageShot was covered).
+test('autopilotTo rolls toward the target heading', () => {
+  const w = createWorld({ seed: 1 });
+  w.plane.heading = 0; w.plane.speed = 90; w.plane.y = 1000;
+  const east = autopilotTo(w, 10000, 1000, w.plane.z);
+  assert.ok(east.roll > 0, `target east should roll right, roll=${east.roll}`);
+  const north = autopilotTo(w, 0, 1000, 10000);
+  assert.ok(Math.abs(north.roll) < 0.05, `target ahead should fly straight, roll=${north.roll}`);
+});
+
+test('autopilotTo uses full throttle while climbing hard, cruise throttle otherwise', () => {
+  const w = createWorld({ seed: 1 });
+  w.plane.speed = 90; w.plane.y = 500;
+  assert.equal(autopilotTo(w, 0, 2000, 10000).throttle, 1, 'altErr 1500 > 100');
+  const cruise = autopilotTo(w, 0, 500, 10000).throttle;
+  assert.ok(cruise >= 0.25 && cruise <= 1, `cruise throttle ${cruise}`);
+});
+
+test('autopilotTo clamps pitch to the staging envelope', () => {
+  const w = createWorld({ seed: 1 });
+  w.plane.y = 100;
+  assert.equal(autopilotTo(w, 0, 5000, 10000).pitch, 15);
+  w.plane.y = 5000;
+  assert.equal(autopilotTo(w, 0, 100, 10000).pitch, -8);
 });

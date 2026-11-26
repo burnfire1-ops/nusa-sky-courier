@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createWorld, stepWorld } from '../game/src/world.js';
-import { MISSIONS, createMissionRun, updateMission } from '../game/src/missions.js';
+import { MISSIONS, createMissionRun, updateMission, missionProgress } from '../game/src/missions.js';
 
 test('three mission archetypes exist with distinct goals and rewards', () => {
   assert.equal(MISSIONS.length, 3);
@@ -16,7 +16,7 @@ test('three mission archetypes exist with distinct goals and rewards', () => {
 });
 
 test('ring run completes when every ring is collected', () => {
-  const world = createWorld({ seed: 1, mission: 'ring' });
+  const world = createWorld({ seed: 1 });
   const run = createMissionRun(MISSIONS.find((m) => m.kind === 'ring'), world);
   assert.equal(run.status, 'active');
   for (const ring of world.rings) {
@@ -29,7 +29,7 @@ test('ring run completes when every ring is collected', () => {
 });
 
 test('ring run fails when the plane crashes', () => {
-  const world = createWorld({ seed: 1, mission: 'ring' });
+  const world = createWorld({ seed: 1 });
   const run = createMissionRun(MISSIONS.find((m) => m.kind === 'ring'), world);
   world.plane.crashed = true;
   updateMission(run, world);
@@ -37,7 +37,7 @@ test('ring run fails when the plane crashes', () => {
 });
 
 test('precision delivery completes on a gentle landing after the pickup ring', () => {
-  const world = createWorld({ seed: 1, mission: 'ring' });
+  const world = createWorld({ seed: 1 });
   const run = createMissionRun(MISSIONS.find((m) => m.kind === 'precision'), world);
   const ring = world.rings[0];
   world.plane.x = ring.x; world.plane.y = ring.y; world.plane.z = ring.z;
@@ -56,10 +56,21 @@ test('precision delivery completes on a gentle landing after the pickup ring', (
 });
 
 test('storm run fails when the time limit expires', () => {
-  const world = createWorld({ seed: 1, mission: 'ring' });
+  const world = createWorld({ seed: 1 });
   const mission = MISSIONS.find((m) => m.kind === 'storm');
   const run = createMissionRun(mission, world);
   world.time = mission.timeLimit + 1;
   updateMission(run, world);
   assert.equal(run.status, 'failed');
+});
+
+// M12-clean N6: missionProgress was untested.
+test('missionProgress tells the player what to do next', () => {
+  const world = createWorld({ seed: 1 });
+  const ringRun = createMissionRun(MISSIONS.find((m) => m.kind === 'ring'), world);
+  assert.equal(missionProgress(ringRun, world), 'Cincin 0/3');
+  const precision = createMissionRun(MISSIONS.find((m) => m.kind === 'precision'), world);
+  assert.equal(missionProgress(precision, world), 'Ambil paket di cincin pertama');
+  precision.pickedUp = true;
+  assert.equal(missionProgress(precision, world), 'Paket di tangan — mendaratlah di runway!');
 });

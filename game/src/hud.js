@@ -2,7 +2,7 @@
 // event-driven, readable at a glance; numbers update only when changed.
 // M10.6: stealth-fighter green tactical HUD — angular chamfered frames,
 // pitch ladder + flight-path marker + gun cross in the cockpit centre.)
-import { ISLANDS } from './config.js';
+import { ISLANDS, FLIGHT, HUD_TUNING, PALETTE } from './config.js';
 
 const el = (id) => document.getElementById(id);
 
@@ -28,9 +28,9 @@ export function updateHud(world, econ, missionText, extra = {}) {
   const warn = el('hud-warn');
   if (warn) {
     let msg = '';
-    if (p.speed < 55 && p.airborne) msg = 'STALL — turunkan hidung, tambah throttle!';
-    else if (p.fuel < 20) msg = 'FUEL RENDAH';
-    else if (p.hull < 40) msg = 'HULL RUSAK';
+    if (p.speed < FLIGHT.stallSpeed && p.airborne) msg = 'STALL — turunkan hidung, tambah throttle!';
+    else if (p.fuel < HUD_TUNING.fuelWarn) msg = 'FUEL RENDAH';
+    else if (p.hull < HUD_TUNING.hullWarn) msg = 'HULL RUSAK';
     if (last.warn !== msg) {
       last.warn = msg;
       warn.textContent = msg;
@@ -43,9 +43,9 @@ export function updateHud(world, econ, missionText, extra = {}) {
   // bars and the objective panel. DOM/canvas overlay only: 0 extra
   // WebGL draw calls. (game-ui-ux: anchored edge instruments.)
   const spdTape = el('tape-spd');
-  if (spdTape) drawTape(spdTape.getContext('2d'), spdTape.width, spdTape.height, p.speed, 0, 200, 60, 20, 40);
+  if (spdTape) { const t = HUD_TUNING.speedTape; drawTape(spdTape.getContext('2d'), spdTape.width, spdTape.height, p.speed, t.min, t.max, t.span, t.major, t.label); }
   const altTape = el('tape-alt');
-  if (altTape) drawTape(altTape.getContext('2d'), altTape.width, altTape.height, p.y, 0, 5000, 1000, 250, 500);
+  if (altTape) { const t = HUD_TUNING.altTape; drawTape(altTape.getContext('2d'), altTape.width, altTape.height, p.y, t.min, t.max, t.span, t.major, t.label); }
   const chaseTape = el('chase-compass-canvas');
   if (chaseTape) drawCompassTape(chaseTape.getContext('2d'), chaseTape.width, chaseTape.height, world);
   setBar('bar-thr', p.throttle * 100, 0);
@@ -68,8 +68,8 @@ function drawRadar(world) {
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height;
   const p = world.plane;
-  // Radar covers 40000 ft around the plane, north up.
-  const scale = W / 40000;
+  // Radar covers HUD_TUNING.radarRangeFt around the plane, north up.
+  const scale = W / HUD_TUNING.radarRangeFt;
   const toX = (x) => W / 2 + (x - p.x) * scale;
   const toY = (z) => H / 2 - (z - p.z) * scale;
   ctx.clearRect(0, 0, W, H);
@@ -85,7 +85,7 @@ function drawRadar(world) {
   ctx.fillRect(toX(-100), toY(0), 200 * scale, 3000 * scale);
   for (const ring of world.rings) {
     if (ring.collected) continue;
-    ctx.strokeStyle = '#3dff7a';
+    ctx.strokeStyle = GREEN;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(toX(ring.x), toY(ring.z), 5, 0, Math.PI * 2);
@@ -172,7 +172,9 @@ function setBar(id, pct, warnAt) {
 // ---- Cockpit view: 6 live analog dials + compass tape (canvas) ----
 // (Skill: game-ui-ux — one scaling policy, anchored bottom; game-feel —
 // instruments are the juice for a flight sim, so they stay lit and live.)
-const GREEN = '#3dff7a';
+// M12-clean N4: the stealth-HUD green lives in PALETTE.hudGreen —
+// one source, not a literal plus a const plus ~15 CSS copies.
+const GREEN = `#${PALETTE.hudGreen.toString(16).padStart(6, '0')}`;
 const GREEN_DIM = '#8affb0';
 const FACE = '#141026';
 const CARDINALS = ['N', '030', '060', 'E', '120', '150', 'S', '210', '240', 'W', '300', '330'];
@@ -317,12 +319,12 @@ function drawDials(ctx, W, H, world, econ, missionText) {
   ctx.font = 'bold 13px sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText(missionText, W / 2, 18);
-  const cy = 118, r = 58;
-  const xs = [80, 240, 400, 560, 720, 880];
+  const cy = HUD_TUNING.dialCy, r = HUD_TUNING.dialR;
+  const xs = HUD_TUNING.dialXs;
   // 1. Airspeed (0–200 kts, needle sweeps -120°..+120°).
   dialFace(ctx, xs[0], cy, r, 'AIRSPEED');
   dialTicks(ctx, xs[0], cy, r, 20, -120, 240);
-  dialNeedle(ctx, xs[0], cy, r, -120 + (Math.min(p.speed, 200) / 200) * 240);
+  dialNeedle(ctx, xs[0], cy, r, -120 + (Math.min(p.speed, HUD_TUNING.dialAirspeedMax) / HUD_TUNING.dialAirspeedMax) * 240);
   dialValue(ctx, xs[0], cy, `${Math.round(p.speed)}`);
   // 2. Attitude — artificial horizon, rotated by roll, shifted by pitch.
   dialFace(ctx, xs[1], cy, r, 'ATTITUDE');
@@ -353,13 +355,13 @@ function drawDials(ctx, W, H, world, econ, missionText) {
   // 3. Altitude (0–5000 ft).
   dialFace(ctx, xs[2], cy, r, 'ALTITUDE');
   dialTicks(ctx, xs[2], cy, r, 20, -120, 240);
-  dialNeedle(ctx, xs[2], cy, r, -120 + (Math.min(p.y, 5000) / 5000) * 240);
+  dialNeedle(ctx, xs[2], cy, r, -120 + (Math.min(p.y, HUD_TUNING.dialAltMax) / HUD_TUNING.dialAltMax) * 240);
   dialValue(ctx, xs[2], cy, `${Math.round(p.y)}`);
   // 4. VSI (-2000..+2000 ft/min; vs is ft/s).
   dialFace(ctx, xs[3], cy, r, 'VSI');
   dialTicks(ctx, xs[3], cy, r, 20, -120, 240);
-  const vs = Math.max(-2000, Math.min(2000, p.vs * 60));
-  dialNeedle(ctx, xs[3], cy, r, (vs / 2000) * 90);
+  const vs = Math.max(-HUD_TUNING.vsiMax, Math.min(HUD_TUNING.vsiMax, p.vs * 60));
+  dialNeedle(ctx, xs[3], cy, r, (vs / HUD_TUNING.vsiMax) * 90);
   dialValue(ctx, xs[3], cy, vs >= 0 ? `+${Math.round(vs)}` : `${Math.round(vs)}`);
   // 5. Heading — compass rose with a pointer at current heading.
   dialFace(ctx, xs[4], cy, r, 'HEADING');
@@ -380,7 +382,7 @@ function drawDials(ctx, W, H, world, econ, missionText) {
   // 6. Fuel (0–100%).
   dialFace(ctx, xs[5], cy, r, 'FUEL');
   dialTicks(ctx, xs[5], cy, r, 10, -120, 240);
-  dialNeedle(ctx, xs[5], cy, r, -120 + (p.fuel / 100) * 240, p.fuel < 20 ? '#ff5555' : '#ffffff');
+  dialNeedle(ctx, xs[5], cy, r, -120 + (p.fuel / 100) * 240, p.fuel < HUD_TUNING.fuelWarn ? '#ff5555' : '#ffffff');
   dialValue(ctx, xs[5], cy, `${Math.round(p.fuel)}%`);
 }
 

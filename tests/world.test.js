@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { createWorld, stepWorld, STALL_SPEED, mulberry32 } from '../game/src/world.js';
 
 function fresh(seed = 1) {
-  return createWorld({ seed, mission: 'ring' });
+  return createWorld({ seed });
 }
 
 test('fresh world starts on the runway, stopped, full fuel and hull', () => {

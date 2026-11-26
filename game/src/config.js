@@ -3,21 +3,12 @@
 export const PALETTE = {
   skyDusk: 0x2a1e3f,
   skyHorizon: 0xff8c42,
-  sea: 0x14506b,
-  seaDeep: 0x0e3a52,
   sand: 0xd8b47e,
-  rockBara: 0x5a4632,
   lava: 0xff5a1e,
-  cityGrey: 0x8a8f98,
-  cityLight: 0xffd27a,
-  greenHijau: 0x2e6b34,
   palm: 0x1f5230,
-  runway: 0x2b2b33,
   runwayLine: 0xf2f2e8,
   ringGold: 0xffc233,
-  planeCream: 0xf2e3c6,
   planeOrange: 0xe86a2c,
-  hudAmber: 0xffc233,
   // M8 visual additions (palette only — no layout change).
   snow: 0xefe9dc,
   rockDark: 0x4a3423,
@@ -33,11 +24,8 @@ export const PALETTE = {
   lighthouseRed: 0xc23b2e,
   cloudWhite: 0xfff2e0,
   cloudPink: 0xf2c8e0,
-  canopyDark: 0x1c2f4a,
   gearDark: 0x2b2b33,
   hangarGrey: 0x9aa0a8,
-  hangarDoor: 0x3a4a5a,
-  seaGlint: 0x9fd8e8,
   // M10 stealth: matte grey airframe (F-22 "air superiority gray" —
   // the first charcoal 0x2e3238 read as a black spider against the dark
   // volcano; the lighter grey keeps the stealth read with contrast).
@@ -47,7 +35,8 @@ export const PALETTE = {
   hudGreen: 0x3dff7a,
 };
 
-// Islands: x/z in feet, matching the mission rings in world.js.
+// Islands: x/z in feet — the mission rings sit over these
+// (world.js derives ring x/z from here, heights stay there).
 export const ISLANDS = [
   {
     name: 'Bara Utara', x: 0, z: 3500, radius: 2200, height: 1400,
@@ -64,7 +53,94 @@ export const ISLANDS = [
 ];
 
 export const CAMERA = { distance: 190, height: 70, lookAhead: 300, lerp: 0.12 };
-export const PERF = { maxDrawCalls: 30, maxTriangles: 40000, captureDpr: 1.0 };
+export const PERF = { maxDrawCalls: 30, maxTriangles: 40000 };
+
+// Flight-model tuning (world.js reads these). M12-clean N2: the numbers
+// used to be literals scattered through stepWorld; the VALUES are
+// unchanged since M5 — only the names moved here.
+export const FLIGHT = {
+  stallSpeed: 55,
+  maxSpeed: 150,
+  speedClampMax: 170,
+  liftRefSpeed: 100,
+  sinkRate: 15,
+  pitchMin: -15,
+  pitchMax: 25,
+  stallPitch: -8,
+  rollMaxDeg: 25,
+  turnRateDegPerSec: 30,
+  turnRefSpeed: 80,
+  burnBase: 0.05,
+  burnThrottle: 0.30,
+  gustIntervalSec: 2,
+  gustMax: 6,
+  wind: { x: 3, z: 1 },
+  ringRadius: 150,
+  landingVsMax: 8,
+  landingSpeedMax: 90,
+  damageVsFactor: 4,
+  damageSpeedFactor: 0.5,
+  damageOffRunway: 10,
+  ktsToFps: 1.68781,
+};
+
+// Screenshot-staging tuning (shots.js reads these; values unchanged).
+export const SHOTS = {
+  sample: 1 / 30,
+  startSeconds: 5,
+  playSeconds: 18,
+  landingSeconds: 40,
+  spawnZ: -2500,
+  startSpeed: 100,
+  startAlt: 700,
+  playSpeed: 100,
+  playAlt: 700,
+  landingSpeed: 85,
+  landingAlt: 350,
+  landingZ: -4200,
+  landingTarget: { x: 0, y: 100, z: -2600 },
+  freezeZ: -2900,
+  freezeAlt: 120,
+  autopilotCruiseSpeed: 90,
+  autopilotThrottleBase: 0.6,
+  autopilotThrottleMin: 0.25,
+  autopilotThrottleSlope: 60,
+  autopilotClimbAltErr: 100,
+  autopilotClimbThrottle: 1,
+  autopilotPitchMin: -8,
+  autopilotPitchMax: 15,
+  autopilotPitchDivisor: 40,
+  autopilotRollDivisor: 25,
+};
+
+// Input tuning (input.js reads these; values unchanged).
+export const INPUT = {
+  orbitYaw: 0.15,
+  orbitPitch: 0.08,
+  orbitPitchMin: -6,
+  orbitPitchMax: 14,
+  throttleRate: 0.5,
+  pitchUp: -8,
+  pitchDown: 10,
+};
+
+// HUD tuning (hud.js reads these; values unchanged).
+export const HUD_TUNING = {
+  radarRangeFt: 40000,
+  dialXs: [80, 240, 400, 560, 720, 880],
+  dialCy: 118,
+  dialR: 58,
+  dialAirspeedMax: 200,
+  dialAltMax: 5000,
+  vsiMax: 2000,
+  fuelWarn: 20,
+  hullWarn: 40,
+  speedTape: { min: 0, max: 200, span: 60, major: 20, label: 40 },
+  altTape: { min: 0, max: 5000, span: 1000, major: 250, label: 500 },
+};
+
+// Landing-rank points (economy.js reads these; values unchanged).
+export const LANDING_POINTS = { S: 100, A: 70, B: 40, C: 20 };
 
 // M8 landmarks — visual only, positions chosen on existing terrain/runway.
 // Lighthouse sits on Bara's south shore; viaduct spans Tanjung's south bay;

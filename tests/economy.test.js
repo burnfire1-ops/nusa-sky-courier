@@ -2,29 +2,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createEconomy, buyUpgrade, addReward, landingRank, applyLanding, UPGRADES, RANKS } from '../game/src/economy.js';
+import { createEconomy, addReward, landingRank, applyLanding, RANKS } from '../game/src/economy.js';
 
-test('fresh economy starts at zero KR, rank PEMULA, no upgrades', () => {
+test('fresh economy starts at zero KR, rank PEMULA', () => {
   const e = createEconomy();
   assert.equal(e.kr, 0);
   assert.equal(e.rank, 'PEMULA');
-  assert.deepEqual(e.upgrades, { engine: 0, tank: 0, hull: 0 });
-});
-
-test('buying an upgrade deducts KR and applies it once', () => {
-  const e = createEconomy();
-  addReward(e, 500);
-  assert.equal(buyUpgrade(e, 'engine'), true);
-  assert.equal(e.kr, 500 - UPGRADES.engine.cost);
-  assert.equal(e.upgrades.engine, 1);
-  assert.equal(buyUpgrade(e, 'engine'), false, 'already owned');
-});
-
-test('buying without enough KR fails and changes nothing', () => {
-  const e = createEconomy();
-  assert.equal(buyUpgrade(e, 'tank'), false);
-  assert.equal(e.kr, 0);
-  assert.equal(e.upgrades.tank, 0);
 });
 
 test('landing rank S needs a gentle slow landing with all rings and full hull', () => {

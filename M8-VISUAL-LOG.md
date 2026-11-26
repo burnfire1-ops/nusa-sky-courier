@@ -637,3 +637,104 @@ events (sebelumnya 2x console 404).
   audio.js, config.js, ISLANDS, staging shot, kamera, flight
   model, nilai/logika HUD, pesawat siluman, panel title/debrief,
   pencahayaan global, landmark lain, awan, laut.
+
+## M12-clean — kerapian kode (N1–N6), 27 Nov 2026 ~05:07–05:30 WIB
+
+Refactor murni: tidak ada nilai gameplay/visual yang berubah. Bukti
+utama: keempat shot PNG hasil re-capture byte-identik dengan baseline
+M12-fix (sha256 start dd6a7864…, play 4898cecf…, landing 974d2bb2…,
+end 9e497927…), draw calls/tris identik (26/13280, 19/12782,
+28/13380, 28/13380), JPEG repo byte-identik.
+
+- N1: helper murni render.js -> game/src/terrain.js baru (hash2,
+  smoothstep, volcanoAngleMod, lavaFlowMask, tierHex, tierColor,
+  tierBounds, islandProfileData, islandSurfaceY). render.js tinggal
+  wrapper tipis islandProfile() (Vector2 untuk LatheGeometry) +
+  4 scratch Color. tierColor menerima scratch `blend` sebagai
+  parameter supaya terrain.js tetap THREE-free. render.js 1113 ->
+  951 baris.
+- N2: angka tuning -> config.js (FLIGHT, SHOTS, INPUT, HUD_TUNING,
+  LANDING_POINTS). Nilai tidak berubah — hanya nama yang pindah
+  (world.js 23 substitusi, shots.js 10, input.js 6, hud.js 13,
+  economy.js 3; test hijau sesudah tiap kelompok).
+- N3 (dead code, grep-verified): CRUISE_SPEED, PERF.captureDpr,
+  12 entri PALETTE (sea, seaDeep, seaGlint, planeCream, hudAmber,
+  cityGrey, cityLight, canopyDark, hangarDoor, rockBara,
+  greenHijau, runway) dihapus. lighthouseWhite/lighthouseRed/
+  hudGreen TIDAK dihapus — jadi hidup di N4 (lihat bawah).
+  UPGRADES/buyUpgrade + field `upgrades` dihapus bersama 2
+  test-nya; world.mission dihapus bersama opsi `mission` di
+  createWorld (rings selalu dibuat — ketiga misi butuh cincin
+  yang sama).
+- N4: clamp + DEG -> game/src/util.js baru (satu copy; dulu
+  clamp di world.js + shots.js, DEG di world.js + render.js).
+  Ring x/z diturunkan dari ISLANDS (world.js) — akar K1 ditutup.
+  stripeTexture pakai PALETTE.lighthouseWhite/Red (nilai sama
+  persis dengan literal lama); hud.js GREEN dari
+  PALETTE.hudGreen (literal #3dff7a di drawRadar dihapus); CSS
+  index.html pakai :root vars --hud-green/--hud-green-rgb/--gold
+  (6x literal hijau + 7x rgba + 3x emas disatukan). Warna
+  hardcoded yang nilainya BEDA dari palette (canopy 0x0a0f16,
+  hangar door 0x6a7a8a, laut #2a7ba8) dibiarkan literal dan
+  entri palettenya dihapus — satu sumber per warna.
+- N5: createWorld({mission:'ring'}) di-hardcode dihapus dari
+  main.js (2x) + shots.js; endDay(true) staged di main.js:177
+  -> endDay(false) + komentar jujur (argumen diabaikan karena
+  run complete — cabang DELIVERY COMPLETE sama saja);
+  view.exhaust -> view.exhaustDisc (satu disc, material bersama
+  kedua disc); komentar volcanoAngleMod "Exported for the unit
+  test" kini benar (tests/terrain.test.js); islandSurfaceY
+  sengaja TIDAK disinkronkan dengan modulasi M11 — satu-satunya
+  konsumennya desa (city) + palem (green), modulasinya
+  volcano-only by design, jadi nilainya sudah exact.
+- N6: test baru — tests/terrain.test.js (9 test: hash2,
+  smoothstep, volcanoAngleMod range + east-west, lavaFlowMask,
+  tierHex, tierBounds, islandProfileData, islandSurfaceY di
+  24 spot desa + crater floor, tierColor via FakeColor),
+  tests/util.test.js (clamp, DEG), missionProgress (1 test),
+  autopilotTo (3 test: roll, throttle, pitch clamp).
+
+Kejujuran:
+- Satu kesalahan sendiri saat ekstraksi N1: blok yang saya hapus
+  dari render.js ikut memuat buildIslandGeometry (letaknya di
+  antara islandProfile dan islandSurfaceY). Ketahuan dari grep
+  (call site tierColor hilang), dipulihkan verbatim dari
+  git HEAD + call tierColor diperbarui ke signature baru.
+  Tidak ada file lain yang kena.
+- Satu test baru saya yang salah asumsi: tierColor di y=5
+  BUKAN sand murni — y=5 ada di zona blend ±0.04 dari boundary
+  8/h (perilaku asli, bukan bug port). Test diperbaiki ke y=8
+  (tepat di boundary, guard `d > 0` melewatinya).
+- Smoke test live putaran 1: teleport final approach tanpa
+  refresh membuat speed decay di bawah stall -> pitch-down
+  stall -> hard touchdown hull 96, pesawat diam di runway
+  tanpa debrief. Itu perilaku game yang sudah dikenal (M12),
+  bukan regresi refactor — putaran 2 dengan refresh vs/speed
+  berkala -> landing lembut, debrief LANDED, hull 100.
+- Smoke test live putaran 2 (y=60) gagal mendarat dalam
+  25 dtk bukan karena bug — sim jalan ~0,46x wall di
+  SwiftShader, y=60 butuh ~43 dtk wall. Putaran 3 (y=20,
+  vs=-6, window 40 dtk) LOLOS.
+
+### Verifikasi akhir M12-clean
+- Test 45/45 hijau (32 lama + 11 baru terrain/util + 1
+  missionProgress + 3 autopilotTo − 2 test buyUpgrade yang
+  dihapus bersama kodenya).
+- Re-capture CDP keempat shot: PNG sha256 IDENTIK dengan
+  baseline M12-fix (lihat atas); draw calls/tris identik.
+  PNG baru dibaca sendiri (play/kokpit: kawah + lava flow +
+  6 dial hijau + pitch ladder utuh).
+- Smoke test live: title -> FLY -> briefing -> play -> P
+  pause (layar pause muncul) -> P resume (kembali play) ->
+  landing lembut -> debrief LANDED, hull 100, 0 JS exception.
+  Bukti: /tmp/m12c-smoke.py, /tmp/m12c-smoke2.py.
+- JPEG repo byte-identik M12-fix (tidak di-encode ulang).
+  Dossier rebuild: 590.160 byte, 4 gambar, schema v1 (naik
+  dari 583.447 karena isi game/ berubah — JPEG sama).
+- Kit check: 4 passed / 1 failed transcripts_present (urusan
+  parent, terisi sesudah bundle).
+- File diubah (13): game/src/{terrain.js,util.js} baru,
+  game/src/{config,world,shots,input,hud,economy,main,render}.js,
+  game/index.html, tests/{terrain,util,world,missions,shots,
+  economy}.test.js. TIDAK disentuh: audio.js, merge.js,
+  main.ts, serve.ts, nilai gameplay/visual apa pun.

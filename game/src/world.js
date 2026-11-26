@@ -1,9 +1,12 @@
 // Flight model — pure state, no rendering, no DOM. (TDD: tests/world.test.js)
 // Units: positions in feet (x east, y altitude, z north), speed in knots,
 // heading in degrees (0 = north), pitch/roll in degrees, time in seconds.
-export const STALL_SPEED = 55;
-export const CRUISE_SPEED = 110;
-export const MAX_SPEED = 150;
+// M12-clean N4: clamp/DEG live in util.js (one copy for the whole game).
+import { clamp, DEG } from './util.js';
+import { FLIGHT, ISLANDS } from './config.js';
+
+export const STALL_SPEED = FLIGHT.stallSpeed;
+export const MAX_SPEED = FLIGHT.maxSpeed;
 export const RUNWAY = { x: 0, z0: -3000, z1: 0, halfWidth: 100 };
 
 export function mulberry32(seed) {
@@ -16,39 +19,38 @@ export function mulberry32(seed) {
   };
 }
 
-const KTS_TO_FPS = 1.68781;
-const DEG = Math.PI / 180;
 
-export function createWorld({ seed = 1, mission = 'ring' } = {}) {
+// M12-clean N5: the old `mission` option is gone. It only ever carried
+// 'ring' (hardcoded at every call site, even on day-2 precision / day-3
+// storm) and world.mission was never read — the field lied on days 2–3.
+// All three mission kinds need the same 3 rings, so they are always built.
+export function createWorld({ seed = 1 } = {}) {
   const rand = mulberry32(seed);
-  const rings = mission === 'ring'
-    ? [
-        { x: 0, y: 1700, z: 3500, r: 150, collected: false },
-        { x: 400, y: 900, z: 12000, r: 150, collected: false },
-        // M12-fix K1: ring 3 was y=700 — its whole disc (bottom 550 ft)
-        // sat below Hijau's peak (900 ft), so the ring was buried in the
-        // mountain. y=1150 puts the bottom (1000 ft) 100 ft clear of the
-        // peak; see tests/world.test.js ring-clearance invariant.
-        { x: -300, y: 1150, z: 18000, r: 150, collected: false },
-      ]
-    : [];
+  // M12-clean N4: ring x/z come from ISLANDS — the K1 root cause was
+  // these coordinates living in two places (world.js vs config.js).
+  // Ring heights stay here: they are mission tuning, not island data.
+  // M12-fix K1: ring 3 was y=700 — its whole disc (bottom 550 ft) sat
+  // below Hijau's peak (900 ft), so the ring was buried in the mountain.
+  // y=1150 puts the bottom (1000 ft) 100 ft clear of the peak; see
+  // tests/world.test.js ring-clearance invariant.
+  const RING_HEIGHTS = [1700, 900, 1150];
+  const rings = ISLANDS.map((island, i) => ({
+    x: island.x, y: RING_HEIGHTS[i], z: island.z,
+    r: FLIGHT.ringRadius, collected: false,
+  }));
   return {
-    seed, mission, time: 0, rand,
+    seed, time: 0, rand,
     plane: {
       x: 0, y: 0, z: -2500, heading: 0, pitch: 0, roll: 0,
       speed: 0, vs: 0, throttle: 0,
       fuel: 100, hull: 100, airborne: false, landed: false, crashed: false,
     },
-    wind: { x: 3, z: 1 },
+    wind: { ...FLIGHT.wind },
     gust: { x: 0, z: 0 },
     gustTimer: 0,
     rings,
     collected: 0,
   };
-}
-
-function clamp(v, lo, hi) {
-  return v < lo ? lo : v > hi ? hi : v;
 }
 
 export function stepWorld(world, dt, input) {
@@ -58,10 +60,10 @@ export function stepWorld(world, dt, input) {
 
   // Gusts: new seeded gust every 2 s.
   world.gustTimer += dt;
-  if (world.gustTimer >= 2) {
+  if (world.gustTimer >= FLIGHT.gustIntervalSec) {
     world.gustTimer = 0;
-    world.gust.x = (world.rand() * 2 - 1) * 6;
-    world.gust.z = (world.rand() * 2 - 1) * 6;
+    world.gust.x = (world.rand() * 2 - 1) * FLIGHT.gustMax;
+    world.gust.z = (world.rand() * 2 - 1) * FLIGHT.gustMax;
   }
 
   // Throttle: move toward the input, forced to zero on an empty tank.
@@ -70,30 +72,30 @@ export function stepWorld(world, dt, input) {
   if (p.fuel <= 0) p.throttle = 0;
 
   // Fuel burn scales with throttle.
-  p.fuel = Math.max(0, p.fuel - (0.05 + p.throttle * 0.30) * dt);
+  p.fuel = Math.max(0, p.fuel - (FLIGHT.burnBase + p.throttle * FLIGHT.burnThrottle) * dt);
 
   // Pitch: move toward the target; below stall speed the nose damps down.
-  const wantPitch = clamp(input.pitch ?? 0, -15, 25);
+  const wantPitch = clamp(input.pitch ?? 0, FLIGHT.pitchMin, FLIGHT.pitchMax);
   p.pitch += (wantPitch - p.pitch) * Math.min(1, dt * 2);
   const stalled = p.speed < STALL_SPEED && p.airborne;
-  if (stalled) p.pitch += (-8 - p.pitch) * Math.min(1, dt * 2);
+  if (stalled) p.pitch += (FLIGHT.stallPitch - p.pitch) * Math.min(1, dt * 2);
 
   // Roll and heading: roll steers, scaled by speed.
-  const rollTarget = clamp(input.roll ?? 0, -1, 1) * 25;
+  const rollTarget = clamp(input.roll ?? 0, -1, 1) * FLIGHT.rollMaxDeg;
   p.roll += (rollTarget - p.roll) * Math.min(1, dt * 3);
-  p.heading += (p.roll / 25) * 30 * dt * clamp(p.speed / 80, 0, 1);
+  p.heading += (p.roll / FLIGHT.rollMaxDeg) * FLIGHT.turnRateDegPerSec * dt * clamp(p.speed / FLIGHT.turnRefSpeed, 0, 1);
   p.heading = ((p.heading % 360) + 360) % 360;
 
   // Speed: throttle pulls toward its top speed, pitch costs speed.
   p.speed += (p.throttle * MAX_SPEED - p.speed) * 0.3 * dt
     - Math.sin(p.pitch * DEG) * 8 * dt;
-  p.speed = clamp(p.speed, 0, 170);
+  p.speed = clamp(p.speed, 0, FLIGHT.speedClampMax);
 
   // Lift scales with speed squared; below lift the plane sinks.
-  const speedFps = p.speed * KTS_TO_FPS;
-  const liftRatio = (p.speed / 100) * (p.speed / 100);
+  const speedFps = p.speed * FLIGHT.ktsToFps;
+  const liftRatio = (p.speed / FLIGHT.liftRefSpeed) * (p.speed / FLIGHT.liftRefSpeed);
   const targetVs = speedFps * Math.sin(p.pitch * DEG) * liftRatio
-    - (1 - liftRatio) * 15;
+    - (1 - liftRatio) * FLIGHT.sinkRate;
   p.vs += (targetVs - p.vs) * Math.min(1, dt * 3);
 
   // Position: heading plus wind and gusts.
@@ -118,15 +120,15 @@ export function stepWorld(world, dt, input) {
     p.y = 0;
     const onRunway = Math.abs(p.x - RUNWAY.x) <= RUNWAY.halfWidth
       && p.z >= RUNWAY.z0 && p.z <= RUNWAY.z1;
-    const gentle = Math.abs(p.vs) <= 8 && p.speed < 90;
+    const gentle = Math.abs(p.vs) <= FLIGHT.landingVsMax && p.speed < FLIGHT.landingSpeedMax;
     if (p.airborne && onRunway && gentle) {
       p.landed = true;
       p.airborne = false;
       p.vs = 0;
     } else if (p.airborne) {
-      if (Math.abs(p.vs) > 8) p.hull -= (Math.abs(p.vs) - 8) * 4;
-      if (p.speed > 90) p.hull -= (p.speed - 90) * 0.5;
-      if (!onRunway) p.hull -= 10;
+      if (Math.abs(p.vs) > FLIGHT.landingVsMax) p.hull -= (Math.abs(p.vs) - FLIGHT.landingVsMax) * FLIGHT.damageVsFactor;
+      if (p.speed > FLIGHT.landingSpeedMax) p.hull -= (p.speed - FLIGHT.landingSpeedMax) * FLIGHT.damageSpeedFactor;
+      if (!onRunway) p.hull -= FLIGHT.damageOffRunway;
       p.vs = 0;
       p.speed *= 0.8;
       p.airborne = false;

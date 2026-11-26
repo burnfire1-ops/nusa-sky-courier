@@ -64,7 +64,7 @@ function saveBest() {
 
 function startDay() {
   const mission = MISSIONS[(day - 1) % MISSIONS.length];
-  world = createWorld({ seed: day, mission: 'ring' });
+  world = createWorld({ seed: day });
   view = buildScene(world);
   run = createMissionRun(mission, world);
   lastCollected = 0;
@@ -176,7 +176,11 @@ if (shotName) {
     run = createMissionRun(MISSIONS[0], world);
     run.status = 'complete';
     world.collected = world.rings.length;
-    endDay(true);
+    // M12-clean N5: the staged 'end' shot reuses endDay to render the
+    // debrief panel — the plane is still on final approach, not landed,
+    // and the argument is ignored here anyway (the run is complete, so
+    // endDay takes the DELIVERY COMPLETE branch either way).
+    endDay(false);
   } else if (staged.screen === 'title') {
     showScreen('title');
   } else {
@@ -205,7 +209,7 @@ if (shotName) {
   });
 } else {
   showScreen('title');
-  world = createWorld({ seed: 1, mission: 'ring' });
+  world = createWorld({ seed: 1 });
   view = buildScene(world);
   const timer = new THREE.Timer();
   timer.connect(document);

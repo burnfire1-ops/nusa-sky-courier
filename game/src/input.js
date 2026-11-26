@@ -1,6 +1,8 @@
 // Input — keyboard + mouse. (Skills: camera-systems for the orbit, and the
 // thesis §3.4 control map.) Keys are read per frame; the mouse drags the
 // chase-camera orbit. No pointer lock — desktop browser, plain events.
+// M12-clean N2: the tuning numbers live in config.js (INPUT).
+import { INPUT } from './config.js';
 const keys = new Set();
 let orbit = { yaw: 0, pitch: 0 };
 let dragging = false;
@@ -42,8 +44,8 @@ export function initInput(canvas) {
   window.addEventListener('mouseup', () => { dragging = false; });
   window.addEventListener('mousemove', (e) => {
     if (!dragging) return;
-    orbit.yaw += (e.clientX - lastX) * 0.15;
-    orbit.pitch = Math.max(-6, Math.min(14, orbit.pitch - (e.clientY - lastY) * 0.08));
+    orbit.yaw += (e.clientX - lastX) * INPUT.orbitYaw;
+    orbit.pitch = Math.max(INPUT.orbitPitchMin, Math.min(INPUT.orbitPitchMax, orbit.pitch - (e.clientY - lastY) * INPUT.orbitPitch));
     lastX = e.clientX;
     lastY = e.clientY;
   });
@@ -54,11 +56,11 @@ export function readFlightInput(dt) {
   const down = keys.has('s') || keys.has('arrowdown');
   const left = keys.has('a') || keys.has('arrowleft');
   const right = keys.has('d') || keys.has('arrowright');
-  if (keys.has('shift')) throttle = Math.min(1, throttle + dt * 0.5);
-  if (keys.has('control')) throttle = Math.max(0, throttle - dt * 0.5);
+  if (keys.has('shift')) throttle = Math.min(1, throttle + dt * INPUT.throttleRate);
+  if (keys.has('control')) throttle = Math.max(0, throttle - dt * INPUT.throttleRate);
   if (keys.has(' ')) throttle = 0;
   return {
-    pitch: up ? -8 : down ? 10 : 0,
+    pitch: up ? INPUT.pitchUp : down ? INPUT.pitchDown : 0,
     roll: left ? -1 : right ? 1 : 0,
     throttle,
   };

@@ -1,15 +1,14 @@
-// Courier economy — KR currency, hangar shop, landing rank. (TDD: tests/economy.test.js)
+// Courier economy — KR currency, landing rank. (TDD: tests/economy.test.js)
+// M12-clean N2: the rank-point table lives in config.js (LANDING_POINTS).
+import { LANDING_POINTS } from './config.js';
+// M12-clean N3: the hangar shop (UPGRADES/buyUpgrade) is deleted — it had
+// no UI, so KR was unspendable in production and the code was only kept
+// alive by its own tests. Deleted together with those tests.
 export const RANKS = ['PEMULA', 'PERAK', 'EMAS', 'LEGENDA'];
 export const RANK_POINTS = { PEMULA: 0, PERAK: 100, EMAS: 250, LEGENDA: 500 };
 
-export const UPGRADES = {
-  engine: { cost: 150, name: 'Mesin Turbo', desc: '+15% thrust, faster climb' },
-  tank: { cost: 120, name: 'Tangki Besar', desc: '+40% fuel capacity' },
-  hull: { cost: 100, name: 'Lambung Baja', desc: '+30 max hull' },
-};
-
 export function createEconomy() {
-  return { kr: 0, rank: 'PEMULA', rankPoints: 0, upgrades: { engine: 0, tank: 0, hull: 0 } };
+  return { kr: 0, rank: 'PEMULA', rankPoints: 0 };
 }
 
 export function addReward(econ, kr) {
@@ -17,23 +16,13 @@ export function addReward(econ, kr) {
   return econ.kr;
 }
 
-export function buyUpgrade(econ, key) {
-  const up = UPGRADES[key];
-  if (!up || econ.upgrades[key] >= 1 || econ.kr < up.cost) return false;
-  econ.kr -= up.cost;
-  econ.upgrades[key] = 1;
-  return true;
-}
-
-const RANK_POINTS_TABLE = { S: 100, A: 70, B: 40, C: 20 };
-
 export function landingRank({ vs, speed, rings, ringsTotal, hull }) {
   const avs = Math.abs(vs);
   let rank = 'C';
   if (avs <= 3 && speed < 80 && rings >= ringsTotal && hull >= 99) rank = 'S';
   else if (avs <= 6 && speed < 85 && hull >= 90) rank = 'A';
   else if (avs <= 8 && hull >= 70) rank = 'B';
-  return { rank, points: RANK_POINTS_TABLE[rank] };
+  return { rank, points: LANDING_POINTS[rank] };
 }
 
 export function applyLanding(econ, landing) {
