@@ -187,3 +187,54 @@ performance-optimization — dikutip di header file yang diubah):
   bukan glitch melayang; (2) pita rockMid paling lembut dari 4 zona;
   (3) prop disc halo putih di shot 1/3 cukup dominan, tapi terbaca
   sebagai putaran baling-baling.
+
+## M9-fix — DONE 27 Nov ~02:35 WIB (review 2-of-3 Gemini AGREE WITH FIXES)
+
+### Fix 1 (Rank 1, MUST) — Prop disc (render.js)
+- `propTexture()`: gradient dibalik — rim terang 0.75 → transparan 0.0,
+  puncak mid-disc 0.25 (0.06 hub / 0.25 @0.5 / 0.0 rim). Rim terang
+  adalah penyebab disc terbaca sebagai lingkaran putih solid.
+- `updateScene`: chase `0.2 + thr×0.35` (maks 0.55) → `0.15 + thr×0.13`
+  (maks 0.28, sesuai rentang Gemini 0.20–0.28); kokpit tetap
+  `0.08 + thr×0.12` (maks 0.20, sudah dalam rentang). Opacity awal
+  material 0.3 → 0.25.
+- Verifikasi shot 1/3: disc kini smudge putih samar di hidung pesawat,
+  livery cream/oranye + nav light merah/hijau terbaca jelas. **LOLOS.**
+
+### Fix 2 (Rank 2) — ILS kiri-bawah shot 3/4 (main.js shotOrbit)
+- Diagnosis dulu via probe proyeksi Node + three.js vendored (bukan
+  tebak): Y+2 menggeser bar2 cuma ~2 px (no-op — sesuai dugaan),
+  pitch −60 (kamera +20) juga tidak membantu; zoom+40 mengangkat bar2
+  ~35 px ke dalam frame. Pad ILS tidak pernah bisa masuk frame tanpa
+  perubahan kamera drastis (proyeksi y 711–834 vs frame 633) — jadi
+  targetnya "mast + kedua bar terbaca utuh sebagai antena tanah",
+  bukan "pad kelihatan".
+- Percobaan 1 (langsung dipakai): landing `{ yaw: 2, pitch: -80,
+  zoom: 40 }`, end `{ yaw: 0, pitch: 0, zoom: 40 }` — end juga
+  karena cross yang sama kelihatan di shot 4 (kamera straight chase).
+- Verifikasi shot 3/4: mast + bar1 + bar2 SEMUA dalam frame, mast
+  berlanjut ke tepi bawah seperti tiang yang berdiri di tanah —
+  terbaca sebagai struktur antena tanah, bukan glitch melayang.
+  Pesawat sedikit lebih kecil (pull-back 40 ft) tapi tetap hero;
+  runway + HUD shot 3 utuh (ALT 241 / SPD 91 / HDG 357 / HULL 100%).
+  **LOLOS** (catatan jujur: mast tetap terpotong tepi bawah karena
+  pad di luar frame — itu cara tiang tinggi dekat kamera terbaca,
+  bukan glitch; menghilangkan total butuh geser landmark, di luar
+  scope fix ini).
+- Rank 3 Gemini (kontras lereng volcano) DILEWATI sesuai instruksi —
+  risiko regresi pencahayaan global.
+
+### Verifikasi akhir M9-fix
+- Re-capture CDP shot 1/3/4 (shot 2 tidak berubah, tidak di-capture):
+  start 23 calls / 8.856 tris; landing 25 / 8.956; end 25 / 8.956 —
+  semua <30 calls, <40k tris.
+- JPEG q88: 1-start 87 KiB, 3-landing 104 KiB, 4-end 63 KiB
+  (1280×633, ≤256 KiB). Dossier rebuild: 549.671 byte, 4 gambar,
+  schema v1.
+- Test 31/31 hijau. Kit check di commit baru: 4 passed /
+  1 failed transcripts_present (urusan parent).
+- Commit + push: `ada7f05` (local == remote, main). Server serve.ts
+  dimatikan.
+- TIDAK disentuh: world.js, economy.js, missions.js, ISLANDS, awan,
+  langit, laut, HUD, dial kokpit, panel title/debrief, pencahayaan
+  global, staging penerbangan.
