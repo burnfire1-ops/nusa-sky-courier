@@ -51,3 +51,58 @@ Baseline 06fa2ed, test 22/22 hijau. Test RED ditulis dulu (merge, toggle kokpit,
 
 ### M8.7 — DONE 27 Nov ~02:0x WIB (final)
 Re-capture 4 shot, verifikasi scene-by-scene, JPEG q88 ≤256 KiB, dossier kebangun, test 29/29, commit + push. Stats akhir per shot (renderer.info, capture final deterministik — angka identik dengan capture sebelumnya): start 23 calls / 8.232 tris; play (kokpit) 19 / 8.030; landing 25 / 8.332; end 25 / 8.332. Semua <30 calls, <40k tris.
+
+## M8-fix — DONE 27 Nov ~02:1x WIB (review 2-of-3 parent-verify + Gemini AGREE WITH FIXES)
+
+Review: `~/workspace/makefun/best-flight-game/review-m8-gemini-2026-11-27.txt`.
+Shot 1 CLEAR LOSS (panel tutupi volcano), shot 3 CLOSE LOSS (ekor "salib merah" + artefak
+"salib kayu" kiri-bawah). Tier 1 wajib, Tier 2 bila <30 menit, Tier 3 dilarang.
+
+### Diagnosis (probe proyeksi Node + three.js vendored, bukan tebak-tebak)
+- "Salib kayu" kiri-bawah shot 3 = **ILS di (140,-2800)**, bukan windsock: mast top proyeksi
+  (417,598), bar1 (335-500,612-617), pad (427,786) off-frame — mast cuma 35px di frame,
+  terbaca sebagai salib melayang. Windsock (-220,-2400) justru di kanan-tengah (751-808,416-483)
+  dan sudah terbaca benar sebagai sock oranye. Catatan: kamera chase menghadap utara (+z)
+  membuat +x tampil di kiri layar (three.js right-handed) — itulah kenapa ILS (+x) di kiri.
+- Probe juga membuktikan nudge kamera saja tidak bisa mengeluarkan ILS dari frame
+  (butuh pitch +175, pesawat ikut keluar frame) dan tidak bisa menampilkan alasnya
+  (alas di y≈786, mast 120ft di jarak 307ft terlalu tinggi untuk frame) — solusinya
+  tarik mast ke ATAS frame (kamera lebih rendah) supaya mast terbaca penuh sebagai antena.
+
+### Fix 1 (Tier 1) — shot 1 re-stage, 2 percobaan
+- `game/index.html` CSS `body.shot-start #screen-title`: panel dock ke sepertiga kiri +
+  veil gradient (gelap kiri → transparan kanan); `main.js` mode shot tambah class
+  `shot-start` hanya bila `shotName === 'start'` (game normal tidak berubah).
+- Percobaan 1: panel max-width 460 (berakhir x≈575) — volcano + laut + runway lolos,
+  TAPI pesawat ~40% tertutup panel (ujung sayap kiri x≈405). Kriteria tertulis lolos,
+  tapi cover dengan pesawat terpotong panel tetap cacat.
+- Percobaan 2 (dipakai): panel max-width 300, padding-left 24, h1 28px — panel berakhir
+  x≈370, pesawat utuh (sayap 520-880), volcano utuh (puncak + lava cap + ring emas +
+  mercusuar di lereng kiri), laut glitter kanan, runway bawah-tengah, hangar utuh.
+  Panel terbaca penuh, tidak terpotong tepi. **LOLOS.**
+
+### Fix 2+3 (Tier 1+2, digabung) — shot 3 kamera chase
+- `main.js` mode shot: `shotOrbit = shotName === 'landing' ? { yaw: 2, pitch: -80 } : { yaw: 0, pitch: 0 }`
+  (hanya shot landing; shot 4/end tidak berubah, shot 1/2 tidak tersentuh).
+- yaw 2° (three-quarter rear, sesuai spek 1-2°): taper fuselage cream + prop disc kini
+  kelihatan di samping fin/tailplane — baca "salib merah" berkurang, bukan 100% hilang
+  (fin + tailplane masih membentuk + sekilas, tapi kini berdimensi). **LOLOS (dengan catatan).**
+- pitch -80 (kamera 22ft di bawah pesawat, nyaris sejajar): mast ILS naik ke y≈558,
+  bar1 di 576-579, mast 75px di frame — terbaca sebagai antena mast, bukan glitch;
+  bar2 (638) 5px di luar frame bawah, tidak kelihatan karena mast berlanjut ke tepi bawah.
+  HUD tetap: ALT 241, SPD 91, HDG 357, HULL 100%. Runway tetap di depan. **LOLOS.**
+- Stats shot 3: 25 calls / 8.332 tris (sama seperti M8.7 — orbit tidak tambah draw call).
+
+### Fix 4 (Tier 2) — radar shot 3: DILEWATI (sudah terpenuhi)
+Radar `hud.js` sudah menggambar blip: 2 cincin emas (ring 1+2) + panah pesawat putih
+(keduanya kelihatan di PNG baru); blob pulau Bara tertutup cincin ring 1 di titik yang
+sama. Radar tidak kosong — hanya kecil di JPEG. Tidak ada perubahan kode.
+
+### Verifikasi akhir M8-fix
+- Re-capture CDP shot 1 + 3, dibaca sendiri PNG-nya (start2 + landing), kriteria terima lolos.
+- JPEG q88: 1-start.jpg 83 KiB, 3-landing.jpg 84 KiB (1280×633, ≤256 KiB).
+- Dossier rebuild: 503.332 byte (naik dari 484.962 — screenshot baru lebih detail), 4 gambar, schema v1.
+- Test 29/29 hijau. Kit check: 4 passed / 1 failed transcripts_present (urusan parent).
+- Commit + push: `311c736` (local == remote, main). Server serve.ts dimatikan.
+- TIDAK disentuh: world.js, economy.js, missions.js, ISLANDS, noise volcano, awan,
+  geometri kokpit, shot 2-play, shot 4-end. Tidak ada draw call tambahan.
