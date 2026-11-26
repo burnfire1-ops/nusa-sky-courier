@@ -1,5 +1,7 @@
 // HUD — DOM instruments + 2D mini-radar. (Skill: game-ui-ux — anchored,
-// event-driven, readable at a glance; numbers update only when changed.)
+// event-driven, readable at a glance; numbers update only when changed.
+// M10.6: stealth-fighter green tactical HUD — angular chamfered frames,
+// pitch ladder + flight-path marker + gun cross in the cockpit centre.)
 import { ISLANDS } from './config.js';
 
 const el = (id) => document.getElementById(id);
@@ -71,7 +73,7 @@ function drawRadar(world) {
   const toX = (x) => W / 2 + (x - p.x) * scale;
   const toY = (z) => H / 2 - (z - p.z) * scale;
   ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = 'rgba(20, 80, 107, 0.9)';
+  ctx.fillStyle = 'rgba(6, 42, 26, 0.9)';
   ctx.fillRect(0, 0, W, H);
   for (const island of ISLANDS) {
     ctx.fillStyle = '#c9a06b';
@@ -79,11 +81,11 @@ function drawRadar(world) {
     ctx.arc(toX(island.x), toY(island.z), Math.max(4, island.radius * scale), 0, Math.PI * 2);
     ctx.fill();
   }
-  ctx.fillStyle = '#2b2b33';
+  ctx.fillStyle = '#0a2a1a';
   ctx.fillRect(toX(-100), toY(0), 200 * scale, 3000 * scale);
   for (const ring of world.rings) {
     if (ring.collected) continue;
-    ctx.strokeStyle = '#ffc233';
+    ctx.strokeStyle = '#3dff7a';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(toX(ring.x), toY(ring.z), 5, 0, Math.PI * 2);
@@ -93,7 +95,7 @@ function drawRadar(world) {
   ctx.save();
   ctx.translate(toX(p.x), toY(p.z));
   ctx.rotate((p.heading * Math.PI) / 180);
-  ctx.fillStyle = '#f2e3c6';
+  ctx.fillStyle = '#ffffff';
   ctx.beginPath();
   ctx.moveTo(0, -7); ctx.lineTo(5, 6); ctx.lineTo(-5, 6); ctx.closePath();
   ctx.fill();
@@ -126,24 +128,24 @@ function drawTape(ctx, W, H, value, min, max, span, majorStep, labelStep) {
     if (t < min || t > max) continue;
     const y = cy - (t - v) * pxPerUnit;
     const labelled = t % labelStep === 0;
-    ctx.strokeStyle = labelled ? AMBER : '#8888aa';
+    ctx.strokeStyle = labelled ? GREEN : '#5a8a72';
     ctx.lineWidth = labelled ? 2 : 1;
     ctx.beginPath();
     ctx.moveTo(W - 14, y);
     ctx.lineTo(W - (labelled ? 4 : 8), y);
     ctx.stroke();
     if (labelled) {
-      ctx.fillStyle = '#f2e3c6';
+      ctx.fillStyle = '#c8ffe0';
       ctx.fillText(String(t), 4, y + 4);
     }
   }
   // Current-value box + pointer.
   ctx.fillStyle = 'rgba(16, 10, 30, 0.95)';
   ctx.fillRect(0, cy - 13, W, 26);
-  ctx.strokeStyle = AMBER;
+  ctx.strokeStyle = GREEN;
   ctx.lineWidth = 1.5;
   ctx.strokeRect(0.5, cy - 13.5, W - 1, 27);
-  ctx.fillStyle = AMBER;
+  ctx.fillStyle = GREEN;
   ctx.font = 'bold 14px monospace';
   ctx.textAlign = 'center';
   ctx.fillText(String(Math.round(v)), W / 2, cy + 5);
@@ -170,7 +172,8 @@ function setBar(id, pct, warnAt) {
 // ---- Cockpit view: 6 live analog dials + compass tape (canvas) ----
 // (Skill: game-ui-ux — one scaling policy, anchored bottom; game-feel —
 // instruments are the juice for a flight sim, so they stay lit and live.)
-const AMBER = '#ffc233';
+const GREEN = '#3dff7a';
+const GREEN_DIM = '#8affb0';
 const FACE = '#141026';
 const CARDINALS = ['N', '030', '060', 'E', '120', '150', 'S', '210', '240', 'W', '300', '330'];
 
@@ -180,16 +183,29 @@ function dialFace(ctx, cx, cy, r, label) {
   ctx.fillStyle = FACE;
   ctx.fill();
   ctx.lineWidth = 2;
-  ctx.strokeStyle = AMBER;
+  ctx.strokeStyle = GREEN;
   ctx.stroke();
-  ctx.fillStyle = AMBER;
+  // M10.6: angular MFD bezel — octagon ring around the round dial.
+  ctx.beginPath();
+  for (let i = 0; i < 8; i += 1) {
+    const a = (i * Math.PI) / 4 + Math.PI / 8;
+    const x = cx + Math.sin(a) * (r + 5);
+    const y = cy - Math.cos(a) * (r + 5);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = GREEN;
+  ctx.stroke();
+  ctx.fillStyle = GREEN;
   ctx.font = 'bold 11px sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText(label, cx, cy + r - 8);
 }
 
 function dialTicks(ctx, cx, cy, r, count, startDeg, sweepDeg) {
-  ctx.strokeStyle = '#f2e3c6';
+  ctx.strokeStyle = '#c8ffe0';
   ctx.lineWidth = 1.5;
   for (let i = 0; i <= count; i += 1) {
     const a = ((startDeg + (sweepDeg * i) / count) * Math.PI) / 180;
@@ -216,7 +232,7 @@ function dialNeedle(ctx, cx, cy, r, deg, color = '#ffffff') {
 }
 
 function dialValue(ctx, cx, cy, text) {
-  ctx.fillStyle = AMBER;
+  ctx.fillStyle = GREEN;
   ctx.font = 'bold 15px monospace';
   ctx.textAlign = 'center';
   ctx.fillText(text, cx, cy + 22);
@@ -227,13 +243,77 @@ export function updateCockpit(world, econ, missionText) {
   if (canvas) drawDials(canvas.getContext('2d'), canvas.width, canvas.height, world, econ, missionText);
   const tape = el('compass-tape-canvas');
   if (tape) drawCompassTape(tape.getContext('2d'), tape.width, tape.height, world);
+  // M10.6: centre fighter HUD — pitch ladder + flight-path marker +
+  // gun cross, drawn over the forward view (DCS F/A-18 / Falcon 4
+  // symbology: ladder in 5° steps, solid above the horizon, dashed
+  // below; FPM = circle with wings; gun cross = nose reference).
+  const center = el('hud-center-canvas');
+  if (center) drawCenterHud(center.getContext('2d'), center.width, center.height, world);
+}
+
+function drawCenterHud(ctx, W, H, world) {
+  const p = world.plane;
+  ctx.clearRect(0, 0, W, H);
+  ctx.save();
+  ctx.translate(W / 2, H / 2);
+  ctx.rotate((-p.roll * Math.PI) / 180);
+  const pxPerDeg = 4;
+  ctx.strokeStyle = GREEN;
+  ctx.fillStyle = GREEN;
+  ctx.lineWidth = 1.5;
+  ctx.font = 'bold 11px monospace';
+  // Pitch ladder: line for angle deg sits at (pitch - deg) * pxPerDeg.
+  for (const deg of [-20, -15, -10, -5, 0, 5, 10, 15, 20]) {
+    const y = (p.pitch - deg) * pxPerDeg;
+    if (Math.abs(y) > H / 2 - 14) continue;
+    const len = deg === 0 ? 90 : deg % 10 === 0 ? 64 : 44;
+    ctx.strokeStyle = deg === 0 ? GREEN : GREEN_DIM;
+    ctx.setLineDash(deg < 0 ? [6, 4] : []);
+    ctx.beginPath();
+    ctx.moveTo(-len, y);
+    ctx.lineTo(len, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    if (deg % 10 === 0 && deg !== 0) {
+      ctx.fillStyle = GREEN_DIM;
+      ctx.textAlign = 'left';
+      ctx.fillText(String(Math.abs(deg)), len + 5, y + 4);
+    }
+  }
+  ctx.restore();
+  // Flight-path marker (velocity vector): circle with wings + dot,
+  // fixed at the centre of the HUD frame.
+  ctx.strokeStyle = GREEN;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(W / 2, H / 2, 15, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(W / 2 - 34, H / 2);
+  ctx.lineTo(W / 2 - 15, H / 2);
+  ctx.moveTo(W / 2 + 15, H / 2);
+  ctx.lineTo(W / 2 + 34, H / 2);
+  ctx.stroke();
+  ctx.fillStyle = GREEN;
+  ctx.beginPath();
+  ctx.arc(W / 2, H / 2, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+  // Gun cross (nose reference) above the marker.
+  ctx.strokeStyle = GREEN;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(W / 2 - 7, H / 2 - 78);
+  ctx.lineTo(W / 2 + 7, H / 2 - 78);
+  ctx.moveTo(W / 2, H / 2 - 85);
+  ctx.lineTo(W / 2, H / 2 - 71);
+  ctx.stroke();
 }
 
 function drawDials(ctx, W, H, world, econ, missionText) {
   const p = world.plane;
   ctx.clearRect(0, 0, W, H);
   // Mission line across the top of the panel.
-  ctx.fillStyle = AMBER;
+  ctx.fillStyle = GREEN;
   ctx.font = 'bold 13px sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText(missionText, W / 2, 18);
@@ -257,14 +337,14 @@ function drawDials(ctx, W, H, world, econ, missionText) {
   ctx.fillRect(-r, -r, r * 2, r);
   ctx.fillStyle = '#8a5a30';
   ctx.fillRect(-r, 0, r * 2, r);
-  ctx.strokeStyle = '#f2e3c6';
+  ctx.strokeStyle = '#c8ffe0';
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(-r, 0);
   ctx.lineTo(r, 0);
   ctx.stroke();
   ctx.restore();
-  ctx.strokeStyle = AMBER;
+  ctx.strokeStyle = GREEN;
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(xs[1] - 18, cy);
@@ -286,7 +366,7 @@ function drawDials(ctx, W, H, world, econ, missionText) {
   ctx.save();
   ctx.translate(xs[4], cy);
   ctx.rotate((-p.heading * Math.PI) / 180);
-  ctx.fillStyle = '#f2e3c6';
+  ctx.fillStyle = '#c8ffe0';
   ctx.font = 'bold 11px sans-serif';
   ctx.textAlign = 'center';
   const dirs = ['N', 'E', 'S', 'W'];
@@ -295,7 +375,7 @@ function drawDials(ctx, W, H, world, econ, missionText) {
     ctx.fillText(dirs[i], Math.sin(a) * (r - 16), -Math.cos(a) * (r - 16) + 4);
   }
   ctx.restore();
-  dialNeedle(ctx, xs[4], cy, r, 0, AMBER);
+  dialNeedle(ctx, xs[4], cy, r, 0, GREEN);
   dialValue(ctx, xs[4], cy, `${String(Math.round(p.heading)).padStart(3, '0')}°`);
   // 6. Fuel (0–100%).
   dialFace(ctx, xs[5], cy, r, 'FUEL');
@@ -317,20 +397,20 @@ function drawCompassTape(ctx, W, H, world) {
     const h = Math.round(((hdg + d) % 360 + 360) % 360);
     const x = center + d * pxPerDeg;
     const isCard = h % 30 === 0;
-    ctx.strokeStyle = isCard ? AMBER : '#8888aa';
+    ctx.strokeStyle = isCard ? GREEN : '#5a8a72';
     ctx.lineWidth = isCard ? 2 : 1;
     ctx.beginPath();
     ctx.moveTo(x, H - 4);
     ctx.lineTo(x, H - (isCard ? 13 : 8));
     ctx.stroke();
     if (isCard) {
-      ctx.fillStyle = AMBER;
+      ctx.fillStyle = GREEN;
       ctx.fillText(CARDINALS[Math.round(h / 30) % 12], x, 13);
     }
   }
   // Center caret + digital heading in its own box (never collides with a
   // cardinal label — the box covers the centre ticks).
-  ctx.fillStyle = AMBER;
+  ctx.fillStyle = GREEN;
   ctx.beginPath();
   ctx.moveTo(center - 7, 0);
   ctx.lineTo(center + 7, 0);
@@ -339,10 +419,10 @@ function drawCompassTape(ctx, W, H, world) {
   ctx.fill();
   ctx.fillStyle = 'rgba(16, 10, 30, 0.95)';
   ctx.fillRect(center - 30, H - 20, 60, 16);
-  ctx.strokeStyle = AMBER;
+  ctx.strokeStyle = GREEN;
   ctx.lineWidth = 1;
   ctx.strokeRect(center - 30, H - 20, 60, 16);
-  ctx.fillStyle = AMBER;
+  ctx.fillStyle = GREEN;
   ctx.font = 'bold 13px monospace';
   ctx.fillText(`${String(Math.round(hdg)).padStart(3, '0')}°`, center, H - 8);
 }

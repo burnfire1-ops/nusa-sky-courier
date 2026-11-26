@@ -38,6 +38,13 @@ export const PALETTE = {
   hangarGrey: 0x9aa0a8,
   hangarDoor: 0x3a4a5a,
   seaGlint: 0x9fd8e8,
+  // M10 stealth: matte grey airframe (F-22 "air superiority gray" —
+  // the first charcoal 0x2e3238 read as a black spider against the dark
+  // volcano; the lighter grey keeps the stealth read with contrast).
+  stealth: 0x4b5158,
+  stealthDark: 0x191c21,
+  // M10.6 stealth HUD green (DCS F/A-18 / Falcon 4 F-16 classic green).
+  hudGreen: 0x3dff7a,
 };
 
 // Islands: x/z in feet, matching the mission rings in world.js.

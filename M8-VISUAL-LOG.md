@@ -238,3 +238,136 @@ performance-optimization — dikutip di header file yang diubah):
 - TIDAK disentuh: world.js, economy.js, missions.js, ISLANDS, awan,
   langit, laut, HUD, dial kokpit, panel title/debrief, pencahayaan
   global, staging penerbangan.
+
+## M10 Polish Total — DONE 27 Nov ~02:5x WIB (user: gunung, runway,
+## visual lainnya masih kasar; arah "Polish total" + pesawat siluman +
+## HUD siluman; riset referensi dulu)
+
+Skills (router step 0: three.js r187 vendored → threejs-scene-setup,
+threejs-materials-lighting, threejs-geometry, performance-optimization,
+game-feel — dikutip di header render.js/hud.js):
+- threejs-geometry: lathe 28→48 segmen, blend rings di batas tier,
+  swept wing + V-tail dari box ter-rotasi, foam RingGeometry;
+- threejs-materials-lighting: vertex-color tier blend, CanvasTexture
+  (asphalt, soft cloud, exhaust glow), emissive lava (tetap);
+- performance-optimization: budget diukur per shot via renderer.info
+  (2 run CDP, angka identik = deterministik); +2 draw call total
+  (marking runway + foam), 0 call baru untuk HUD (DOM/canvas overlay);
+- game-feel: pitch ladder + FPM + gun cross sebagai juice instrumen
+  kokpit; exhaust glow tumbuh dengan throttle.
+
+### Riset referensi (~10 menit, sebelum desain M10.5/M10.6)
+- Ace Combat 7 (acecombat.fandom.com/wiki/Ace_Combat_7:_Skies_Unknown/
+  Aircraft; FB-22 Strike Raptor): F-22A Raptor (stealth, twin tails,
+  air-superiority gray), F-35C, YF-23 Black Widow II, FB-22 (delta
+  wings, longer fuselage, twin engines, stealth body, skins: air
+  superiority gray, Razgriz black + red tail tips).
+- Project Wingman (projectwingman.fandom.com/wiki/ACG-01_Chimera;
+  nexusmods FA-23/YF-23): Chimera "dark gray body with white leading
+  edges"; PW-Mk.1 "Oh, and don't forget the color ORANGE"; SP-34R
+  variable wing; F/A-23 "pure stealth, refined aerodynamics".
+- DCS World (digitalcombatsimulator.com MiG-29 manual; Hoggit F/A-18
+  wiki; Falcon 4 HUD guide web.deu.edu.tr): HUD symbology — flight
+  path marker / velocity vector (circle + wings + dot), pitch ladder
+  5° steps (solid above horizon, dashed below, 0° longest), gun cross
+  (nose reference), heading tape top, airspeed left, altitude right,
+  bank scale; primary colour GREEN (F/A-18 DDIs, Falcon 4).
+- Diadopsi: V-tail canted + swept trapezoidal wings + blended body
+  (F-22/YF-23/FB-22), dark-grey livery + thin orange accents (Chimera
+  + PW-Mk.1 orange), twin exhaust glow; HUD hijau klasik + pitch
+  ladder/FPM/gun cross + framing angular. Semua geometri/tekstur
+  buatan sendiri di repo — tidak ada aset game yang diunduh.
+
+### M10.1 Gunung (render.js, ISLANDS tidak berubah)
+- Lathe 28 → 48 segmen; tierColor di-refactor (tierHex murni) + blend
+  ±0.04 di tiap batas tier (lerp 0.5 ke warna tetangga); blend rings
+  b±0.04 disisipkan di islandProfile (segaris profil lama, jadi
+  islandSurfaceY tidak berubah).
+- Verifikasi shot 1: lereng halus (facet tidak mencolok), 4 zona tetap
+  terbaca (pasir / coklat gelap / tan / puncak pucat + lava). Shot 3:
+  zona lebih samar dari jarak landing (sudut + jarak), tapi puncak +
+  sand ring terbaca. **LOLOS.**
+
+### M10.2 Runway (render.js, koordinat RUNWAY z0 −3000 / z1 0 tetap)
+- asphaltTexture(): speckle seeded + twin tyre streaks (repeat 1×10);
+  marking merged 1 call: edge lines (x ±96), threshold bars 8× di
+  kedua ujung (z −2920/−80), touchdown-zone pairs (z −2400/−2000).
+- Verifikasi shot 3: edge lines + threshold + dashes terbaca sebagai
+  landasan sungguhan; shot 1: threshold kelihatan di bawah panel.
+  **LOLOS.**
+
+### M10.3 Awan (render.js, 1 InstancedMesh tetap)
+- cloudTexture() radial falloff (soft edge); 18 → 28: low band 18
+  (layout lama) + high band 6 (y 5000–5500, lebih kecil/redup 0.7) +
+  4 multi-lobe companions menempel di awan low-band.
+- Verifikasi shot 1/2/3: langit berlapis, awan blob lembut, bukan
+  potongan kertas. **LOLOS.**
+
+### M10.4 Laut (render.js, warna dasar dusk tetap)
+- Sea texture diperkaya: 12 warm patch besar (sun-path) + 8 dark swell
+  besar; foam ring di waterline tiap pulau (RingGeometry 1.02–1.13r,
+  opacity 0.35, 1 call merged).
+- Verifikasi shot 1/3: laut punya kedalaman/tektur, foam ring
+  kelihatan di garis pantai Bara. **LOLOS.**
+
+### M10.5 Pesawat siluman (render.js, 3 call tetap)
+- Fuselage ConeGeometry 12 segmen (halus) charcoal; spine stripe
+  oranye tipis (2.5); canopy 0x0a0f16; sayap swept-back (box 62
+  rotasi ±0.29 rad, span ~120); wingtip oranye; V-tail fin canted
+  (tanpa fin tegak / tailplane — salib merah hilang by construction);
+  nozzle kembar gelap; prop disc DIGANTI exhaust glow disc oranye
+  (r 15, opacity 0.25+thr×0.35, di ekor menghadap belakang).
+- Percobaan 1: charcoal 0x2e3238 + cant 35° + nozzle r5/6 + glow r18
+  — GAGAL: pesawat terbaca sebagai "laba-laba hitam" (nozzle jadi 2
+  lubang hitam dominan, fin menyebar, fuselage hilang lawan volcano).
+- Percobaan 2 (dipakai): livery 0x4b5158 (F-22 air-superiority gray),
+  cant 28° (0.49 rad, fin 18), nozzle r3.5/4.5, glow r15 redup,
+  trailing-edge strip oranye 2 ft di tepi atas sayap (bukan full-height
+  — percobaan 1.5: strip 4.5 menutupi seluruh tepi sayap jadi bar
+  oranye dominan).
+- Verifikasi shot 1/3: jet gelap sleek dengan aksen oranye, sayap
+  swept, V-tail, exhaust glow, tanpa baling-baling, tanpa salib merah;
+  kontras lawan langit senja + volcano terjaga. Shot 2 kokpit: hidung
+  tetap terbaca (runcing, stripe oranye di tengah). **LOLOS** (catatan
+  jujur: buritan fuselage agak "blob" karena tutup dasar cone menghadap
+  kamera + kena key light hangat — terbaca sebagai badan pesawat,
+  bukan glitch; glow ekor masih cukup terang di tengah).
+
+### M10.6 HUD siluman (hud.js + index.html, 0 draw call WebGL baru)
+- Warna diputuskan HIJAU taktis (#3dff7a, DCS/Falcon 4 klasik —
+  kontras tertinggi lawan langit senja oranye; emas dipertahankan di
+  panel menu, bukan HUD): AMBER → GREEN di semua canvas (tape,
+  compass, radar bg hijau gelap, dial), CSS HUD (top-left, radar,
+  tapes, bars, objective, bottom-center, toast, cockpit-panel)
+  border hijau + radius 0 + chamfer clip-path (sudut terpotong).
+- Dial kokpit: bezel oktagonal hijau (MFD-style); center HUD baru
+  (#hud-center canvas 640×360, cockpit only): pitch ladder 5° (solid
+  di atas horizon, dashed di bawah, label ±10/±20), flight-path
+  marker (lingkaran + sayap + dot), gun cross — digerakkan pitch/roll
+  nyata dari world.plane.
+- Verifikasi shot 2: ladder + FPM + gun cross hijau terbaca, dial
+  90/1661/−54/359/95% utuh; shot 3: semua nilai benar (ALT 241, SPD
+  91, HDG 357, HULL 100%), tidak ada elemen menutupi pesawat/runway/
+  ring. **LOLOS.** (Satu bug tertangkap sebelum capture: updateCockpit
+  sempat memanggil el('hud-center') — div, bukan canvas — diperbaiki
+  ke 'hud-center-canvas' sebelum capture pertama.)
+
+### Verifikasi akhir M10
+- Re-capture CDP keempat shot (2 run, angka identik = deterministik):
+  start 25 calls / 12.980 tris; play (kokpit) 19 / 12.494; landing
+  27 / 13.080; end 27 / 13.080 — semua <30 calls, <40k tris (+2 call
+  vs M9: marking runway + foam; tris +~4k dari lathe 48 + awan 28).
+- JPEG q88: 1-start 85 KiB, 2-play 98 KiB, 3-landing 107 KiB,
+  4-end 65 KiB (1280×633, ≤256 KiB). Dossier rebuild: 575.111 byte,
+  4 gambar, schema v1.
+- Test 31/31 hijau. Kit check: 4 passed / 1 failed
+  transcripts_present (urusan parent).
+- Commit + push: `M10` (local == remote, main). Server serve.ts
+  dimatikan.
+- TIDAK disentuh: world.js, economy.js, missions.js, ISLANDS, staging
+  shot, kamera, flight model, nilai HUD, logika HUD, panel title/
+  debrief, pencahayaan global.
+- Catatan jujur: (1) salib kayu ILS kiri-bawah shot 3/4 masih ada
+  (sisa M8-fix) — terbaca sebagai struktur tanah; (2) zona tier
+  volcano paling samar dari jarak landing; (3) buritan fuselage agak
+  blob + glow ekor masih terang (lihat M10.5).

@@ -17,36 +17,38 @@
   .panel button { margin-top: 16px; padding: 12px 28px; font-size: 16px; font-weight: 700; color: #1a1426; background: #ffc233; border: 0; border-radius: 8px; cursor: pointer; }
   .panel button:hover { background: #ffd35c; }
   #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; font-variant-numeric: tabular-nums; }
-  #hud .top-left { position: absolute; top: 14px; left: 16px; background: rgba(16, 10, 30, 0.72); border: 1px solid rgba(255, 194, 51, 0.5); border-radius: 8px; padding: 10px 14px; font-size: 15px; line-height: 1.7; }
-  #hud .top-left b { color: #ffc233; }
+  #hud .top-left { position: absolute; top: 14px; left: 16px; background: rgba(8, 26, 16, 0.72); border: 1px solid rgba(61, 255, 122, 0.55); border-radius: 0; clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); padding: 10px 14px; font-size: 15px; line-height: 1.7; }
+  #hud .top-left b { color: #3dff7a; }
   #hud .top-right { position: absolute; top: 14px; right: 16px; }
-  #radar { background: rgba(16, 10, 30, 0.72); border: 1px solid rgba(255, 194, 51, 0.5); border-radius: 8px; }
-  #hud .bottom-center { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); background: rgba(16, 10, 30, 0.72); border: 1px solid rgba(255, 194, 51, 0.5); border-radius: 8px; padding: 8px 18px; font-size: 15px; text-align: center; }
-  #hud .bottom-center b { color: #ffc233; }
+  #radar { background: rgba(8, 26, 16, 0.72); border: 1px solid rgba(61, 255, 122, 0.55); border-radius: 0; clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); }
+  #hud .bottom-center { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); background: rgba(8, 26, 16, 0.72); border: 1px solid rgba(61, 255, 122, 0.55); border-radius: 0; clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); padding: 8px 18px; font-size: 15px; text-align: center; }
+  #hud .bottom-center b { color: #3dff7a; }
   /* M9.3 chase-view instruments: side tapes, bottom bars, objective
      panel, chase compass tape. Edge-anchored (game-ui-ux) so the plane,
      runway and ring in the centre stay clear. */
   #hud .tape-left { position: absolute; left: 16px; top: 190px; }
   #hud .tape-right { position: absolute; right: 16px; top: 190px; }
-  #tape-spd, #tape-alt { background: rgba(16, 10, 30, 0.72); border: 1px solid rgba(255, 194, 51, 0.5); border-radius: 8px; }
-  #hud .bars { position: absolute; left: 16px; bottom: 18px; width: 230px; background: rgba(16, 10, 30, 0.72); border: 1px solid rgba(255, 194, 51, 0.5); border-radius: 8px; padding: 10px 12px; font-size: 12px; }
+  #tape-spd, #tape-alt { background: rgba(8, 26, 16, 0.72); border: 1px solid rgba(61, 255, 122, 0.55); border-radius: 0; clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); }
+  #hud .bars { position: absolute; left: 16px; bottom: 18px; width: 230px; background: rgba(8, 26, 16, 0.72); border: 1px solid rgba(61, 255, 122, 0.55); border-radius: 0; clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); padding: 10px 12px; font-size: 12px; }
   #hud .bar-row { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
-  #hud .bar-row span { width: 34px; color: #c9b8a3; }
-  #hud .bar-row b { width: 38px; text-align: right; color: #ffc233; font-weight: 700; }
-  #hud .bar { flex: 1; height: 10px; background: rgba(255, 255, 255, 0.12); border-radius: 5px; overflow: hidden; }
-  #hud .bar i { display: block; height: 100%; background: #ffc233; }
+  #hud .bar-row span { width: 34px; color: #8affb0; }
+  #hud .bar-row b { width: 38px; text-align: right; color: #3dff7a; font-weight: 700; }
+  #hud .bar { flex: 1; height: 10px; background: rgba(255, 255, 255, 0.12); border-radius: 0; overflow: hidden; }
+  #hud .bar i { display: block; height: 100%; background: #3dff7a; }
   #hud .bar i.low { background: #ff5a3c; }
-  #hud .objective { position: absolute; right: 16px; bottom: 18px; width: 250px; background: rgba(16, 10, 30, 0.72); border: 1px solid rgba(255, 194, 51, 0.5); border-radius: 8px; padding: 10px 12px; font-size: 13px; line-height: 1.6; text-align: right; }
-  #hud .objective b { color: #ffc233; }
+  #hud .objective { position: absolute; right: 16px; bottom: 18px; width: 250px; background: rgba(8, 26, 16, 0.72); border: 1px solid rgba(61, 255, 122, 0.55); border-radius: 0; clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); padding: 10px 12px; font-size: 13px; line-height: 1.6; text-align: right; }
+  #hud .objective b { color: #3dff7a; }
   #chase-compass { display: none; position: absolute; top: 8px; left: 50%; transform: translateX(-50%); }
   body.chase #chase-compass { display: block; }
   #hud .warn { color: #ff5a3c; font-weight: 700; }
-  #toast { position: fixed; top: 76px; left: 50%; transform: translateX(-50%); background: rgba(16, 10, 30, 0.85); border: 1px solid #ffc233; border-radius: 8px; padding: 8px 18px; font-size: 15px; z-index: 6; }
+  #toast { position: fixed; top: 76px; left: 50%; transform: translateX(-50%); background: rgba(8, 26, 16, 0.85); border: 1px solid #3dff7a; border-radius: 0; clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); padding: 8px 18px; font-size: 15px; z-index: 6; }
   /* Cockpit view: glareshield panel with live analog dials + compass tape.
      Shown only when the body has class "cockpit" (set by main.js). */
-  #cockpit-panel { display: none; position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); z-index: 5; background: linear-gradient(to top, rgba(16, 10, 30, 0.95), rgba(16, 10, 30, 0.6)); border-top: 1px solid rgba(255, 194, 51, 0.5); border-radius: 12px 12px 0 0; padding: 2px 10px 8px; }
+  #cockpit-panel { display: none; position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); z-index: 5; background: linear-gradient(to top, rgba(8, 26, 16, 0.95), rgba(8, 26, 16, 0.6)); border-top: 1px solid rgba(61, 255, 122, 0.55); border-radius: 0; clip-path: polygon(12px 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%, 0 12px); padding: 2px 10px 8px; }
   #compass-tape { display: none; position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 5; }
   body.cockpit #cockpit-panel, body.cockpit #compass-tape { display: block; }
+  #hud-center { display: none; position: fixed; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 5; pointer-events: none; }
+  body.cockpit #hud-center { display: block; }
   body.cockpit #hud .top-left, body.cockpit #hud .top-right, body.cockpit #hud .bottom-center, body.cockpit #hud .tape-left, body.cockpit #hud .tape-right, body.cockpit #hud .bars, body.cockpit #hud .objective, body.cockpit #chase-compass { display: none; }
   /* Shot 1 (cover) staging ONLY — set by main.js in ?shot=start mode.
      The title card docks to the left third and the veil fades to clear on
@@ -87,6 +89,7 @@
 </div>
 <div id="toast" class="hidden"></div>
 <div id="compass-tape"><canvas id="compass-tape-canvas" width="1280" height="40"></canvas></div>
+<div id="hud-center"><canvas id="hud-center-canvas" width="640" height="360"></canvas></div>
 <div id="cockpit-panel"><canvas id="cockpit-dials" width="960" height="210"></canvas></div>
 
 <div id="screen-title" class="overlay">
