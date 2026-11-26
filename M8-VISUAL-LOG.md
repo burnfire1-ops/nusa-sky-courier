@@ -526,3 +526,114 @@ lava). Shot 3: tekstur lereng terbaca dari jarak landing. **LOLOS.**
   (mod(0)/mod(π)/rentang di atas) + screenshot.
 - Commit + push: `M11` (local == remote, main). Server serve.ts
   dimatikan.
+
+---
+
+## M12-fix — QA bug fixes (K1/K2/K3 P0 + S1/S2/M3 P1)
+
+QA M12 (live playthrough + baca kode, review 2-of-3 parent + Gemini
+AGREE WITH FIXES) menemukan 3 kritis + 3 sedang/minor. Scope yang
+dikerjakan: P0+P1 saja (pilihan user). TIDAK disentuh: S3 (terrain
+collision — by design arcade), S4, M1/M2/M4, kerapian kode N1–N6,
+refactor apa pun.
+
+### K1 — Ring 3 terkubur di Hijau — LOLOS
+Probe node SEBELUM (replikasi islandProfile + islandSurfaceY, tanpa
+three): ring 1 CLEAR (bottom 1550 ft vs terrain maks 1294,8 ft,
+clearance 255,2 ft); ring 2 CLEAR (bottom 750 vs 220, clearance
+530 ft); ring 3 BURIED 350 ft (bottom 550 vs terrain maks 900 di
+pusat pulau; di tepi ring 872 ft vs puncak ring 850 ft). Fix 1 baris
+(world.js:28): ring 3 y 700 -> 1150. Probe SESUDAH: bottom 1000 ft
+vs terrain maks 900 ft -> clearance 100 ft, CLEAR. Test invariant
+baru (tests/world.test.js, 32 test total): tiap ring harus clear dari
+puncak pulau yang ditumpanginya (ring bottom > island height) —
+test ini GAGAL pada y=700 lama. Verifikasi live: cincin emas terbaca
+jelas di langit di atas puncak Hijau (/tmp/m12f2-k1-ring3.png).
+
+### K2 — Fuel habis = soft-lock — LOLOS (live)
+Guard baru di loop main.js (bukan di missions.js — sengaja, supaya
+menangkap juga kasus complete-but-stuck): bila fuel <= 0 && speed
+< 1 && !airborne && !landed && !crashed -> endDay(false) lewat jalur
+yang sudah ada. Pesawat yang masih meluncur TIDAK di-fail — guard
+hanya saat sudah berhenti di tanah. Mencakup juga precision sesudah
+pickup (missions.js:46 hanya fail bila !pickedUp — sengaja TIDAK
+diubah: fail langsung saat fuel 0 akan membunuh glide yang sah ke
+runway). Verifikasi live: injeksi fuel=0,5 sesudah takeoff -> debrief
+"DAY OVER / Misi gagal — bahan bakar habis atau waktu habis."
+muncul; state akhir x=62, y=0, z=-985, spd=1, fuel=0, hull=84,8,
+airborne=false, landed=false, crashed=false
+(/tmp/m12f-k2-debrief.png). Sebelum fix, state yang sama diam 100
+detik tanpa debrief (QA M12).
+
+### K3 — Pause resume mati + "R" fiktif — LOLOS (live)
+(a) main.js: restruktur sync layar/pause — `screen==='play' &&
+isPaused()` -> pause; `screen==='pause' && !isPaused()` -> play.
+Cabang else-if lama tidak pernah tercapai (kondisi pertama selalu
+benar saat pause). (b) input.js: guard `!e.repeat` pada toggle P/C
+(tahan tombol tidak lagi spam-toggle). (c) index.html:126: teks "R
+to restart the day" dihapus (tidak ada handler R; lebih aman daripada
+implementasi restart jelang cutoff). Verifikasi live: P di title ->
+misi dibuka di layar pause; P -> kembali ke play; P lagi -> pause;
+Esc -> play; tombol RESUME tetap bekerja
+(/tmp/m12f-k3-pause-open.png, /tmp/m12f-k3-resumed.png).
+
+### S1 — saveBest sebelum reward — LOLOS (live)
+saveBest() dipindah dari baris pertama endDay ke SESUDAH rantai
+if/else (sesudah addReward + applyLanding). Verifikasi live:
+landing lembut day-1 (semua cincin) -> "DELIVERY COMPLETE, +120 KR
+misi, +100 KR landing. Landing Rank S · Courier PERAK · Total KR
+220"; localStorage nusa-best = {"rank":"PERAK","kr":220} — sama
+persis dengan total debrief (sebelum fix: kr 0).
+(/tmp/m12f2-s1-debrief.png.)
+
+### S2 — Desa Tanjung terkubur/terbalik — LOLOS (live)
+(a) render.js:571: modulo dibungkus `(((v%5)+5)%5)` — % JS
+bertanda negatif membuat 4 rumah h negatif (terbalik); kini h
+selalu 120..360. (b) Rumah ditanam ON the slope via
+islandSurfaceY (seperti palem): body center y = surfaceY + h/2,
+atap y = surfaceY + h + 35. Verifikasi live: ~20+ rumah berbadan
+cream/tan + atap merah terbaca berteras di lereng Tanjung
+(/tmp/m12f2-s2-village.png), bandingkan QA M12 yang hanya melihat
+~7 atap.
+
+### M3 — Favicon 404 — LOLOS (live)
+`<link rel="icon" href="data:,">` di <head> index.html. Probe
+Network sepanjang sesi live: 0 failed resources, 0 failed network
+events (sebelumnya 2x console 404).
+
+### Temuan sampingan (bukan bug, dicatat jujur)
+- Skenario S1 putaran pertama GAGAL BUKAN karena kode: teleport
+  final approach tanpa throttle membuat sink rate tumbuh melewati
+  batas gentle (|vs| > 8) saat speed decay -> hard touchdown
+  (hull 95), pesawat berhenti di tanah dengan fuel 99% — BUKAN
+  soft-lock: pemain bisa takeoff lagi (terbukti live: Shift+S ->
+  airborne lagi, alt 63, spd 114). S1 diulang dengan refresh
+  vs/speed berkala -> landing lembut, LOLOS.
+- Driver verifikasi putaran pertama juga punya bug sendiri: `const
+  w` dideklarasi 3x di global scope Runtime.evaluate -> S2/K1
+  teleport putaran pertama melempar SyntaxError (screenshot
+  menunjukkan pesawat diam di runway day 3). Putaran kedua tanpa
+  `const` -> LOLOS.
+
+### Verifikasi akhir M12-fix
+- Test 32/32 hijau (31 lama + 1 invariant K1 baru).
+- Re-capture CDP keempat shot: start 26 calls / 13.280 tris; play
+  (kokpit) 19 / 12.782; landing 28 / 13.380; end 28 / 13.380 —
+  identik M11 (+0 call, +0 tris; shot 1 PNG sha256 dd6a7864…
+  sama persis dengan M11 — determinisme utuh). Dibaca sendiri:
+  tidak ada regresi visual.
+- JPEG q88: 1-start 83 KiB, 2-play 95 KiB, 3-landing 104 KiB,
+  4-end 62 KiB (1280×633, ≤256 KiB). Dossier rebuild: 583.447
+  byte, 4 gambar, schema v1.
+- Kit check: 4 passed / 1 failed transcripts_present (urusan
+  parent).
+- PNG: /tmp/nusa-m12f-{start,play,landing,end}.png; bukti live:
+  /tmp/m12f-{k3-pause-open,k3-resumed,k2-debrief}.png,
+  /tmp/m12f2-{s1-debrief,s2-village,k1-ring3,bonus-hard-touchdown,bonus-airborne-again}.png.
+- File diubah (6): game/src/world.js (K1), game/src/main.js
+  (K2, K3a, S1), game/src/input.js (K3b), game/index.html (K3c,
+  M3), game/src/render.js (S2), tests/world.test.js (invariant
+  K1). TIDAK disentuh: economy.js, missions.js, shots.js, hud.js,
+  audio.js, config.js, ISLANDS, staging shot, kamera, flight
+  model, nilai/logika HUD, pesawat siluman, panel title/debrief,
+  pencahayaan global, landmark lain, awan, laut.

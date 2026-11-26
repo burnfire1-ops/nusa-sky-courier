@@ -568,7 +568,10 @@ export function buildScene(world) {
       for (let gx = -2; gx <= 2; gx += 1) {
         for (let gz = -2; gz <= 2; gz += 1) {
           if (gx === 0 && gz === 0) continue;
-          const h = 120 + ((gx * 7 + gz * 13) % 5) * 60;
+          // M12-fix S2: JS % keeps the sign of a negative operand, so 4
+          // houses got negative heights (inverted boxes underground).
+          // Wrap it so h is always 120..360.
+          const h = 120 + ((((gx * 7 + gz * 13) % 5) + 5) % 5) * 60;
           spots.push({ x: island.x + gx * 320, z: island.z + gz * 320, h });
         }
       }
@@ -586,14 +589,18 @@ export function buildScene(world) {
       const col = new THREE.Color();
       const bodyCols = [PALETTE.villageCream, PALETTE.villageTan, 0x8a8578];
       spots.forEach((spot, i) => {
-        p.set(spot.x, spot.h / 2, spot.z);
+        // M12-fix S2: plant houses ON the slope via islandSurfaceY (like
+        // the palms) — the old fixed y=0 buried most of the village
+        // (terrain here is 162-204 ft).
+        const gy = islandSurfaceY(island, spot.x, spot.z);
+        p.set(spot.x, gy + spot.h / 2, spot.z);
         s.set(180, spot.h, 180);
         m.compose(p, q, s);
         bodies.setMatrixAt(i, m);
         col.setHex(bodyCols[(i * 7 + 3) % 3]);
         col.multiplyScalar(0.92 + 0.16 * hash2(spot.x, spot.z));
         bodies.setColorAt(i, col);
-        p.set(spot.x, spot.h + 35, spot.z);
+        p.set(spot.x, gy + spot.h + 35, spot.z);
         s.set(1, 1, 1);
         m.compose(p, qRoof, s);
         roofs.setMatrixAt(i, m);

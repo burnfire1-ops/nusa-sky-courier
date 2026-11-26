@@ -114,3 +114,25 @@ test('flying through a ring collects it', () => {
   assert.equal(ring.collected, true);
   assert.equal(w.collected, 1);
 });
+
+// M12-fix K1: every ring must clear the peak of any island it sits over —
+// ring 3 used to be y=700 with its whole disc below Hijau's 900 ft peak,
+// so the mission could only be finished by flying through the mountain.
+// Conservative check (ring bottom vs island peak, not the slope profile):
+// a ring that passes this is clear of the terrain everywhere.
+test('every ring clears the peak of the island it sits over', async () => {
+  const { ISLANDS } = await import('../game/src/config.js');
+  const w = fresh();
+  assert.ok(w.rings.length > 0, 'mission has rings');
+  for (const ring of w.rings) {
+    for (const island of ISLANDS) {
+      const d = Math.hypot(ring.x - island.x, ring.z - island.z);
+      if (d > island.radius + ring.r) continue;
+      assert.ok(
+        ring.y - ring.r > island.height,
+        `ring at (${ring.x},${ring.y},${ring.z}) bottom ${ring.y - ring.r} ft `
+        + `is below ${island.name} peak ${island.height} ft`,
+      );
+    }
+  }
+});

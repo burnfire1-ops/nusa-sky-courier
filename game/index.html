@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nusa Sky Courier</title>
+<!-- M12-fix M3: inline empty favicon so the browser never 404s /favicon.ico. -->
+<link rel="icon" href="data:,">
 <style>
   html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #1a1426; font-family: "Segoe UI", system-ui, sans-serif; color: #f2e3c6; }
   #scene { display: block; width: 100vw; height: 100vh; }
@@ -123,7 +125,10 @@
 <div id="screen-pause" class="overlay hidden">
   <div class="panel">
     <h2>PAUSED</h2>
-    <p class="sub">P or Esc to resume &middot; R to restart the day</p>
+    <!-- M12-fix K3: the old "R to restart the day" promised a key that
+         had no handler anywhere — removed instead of adding a restart
+         handler this close to the cutoff. -->
+    <p class="sub">P or Esc to resume</p>
     <button id="btn-resume">RESUME</button>
   </div>
 </div>

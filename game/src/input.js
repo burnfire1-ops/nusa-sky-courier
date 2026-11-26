@@ -27,8 +27,10 @@ export function initInput(canvas) {
   window.addEventListener('keydown', (e) => {
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
     keys.add(e.key.toLowerCase());
-    if (e.key.toLowerCase() === 'p' || e.key === 'Escape') paused = !paused;
-    if (e.key.toLowerCase() === 'c') toggleCockpit();
+    // M12-fix K3: ignore key auto-repeat — holding P/C must not
+    // spam-toggle pause/cockpit.
+    if (!e.repeat && (e.key.toLowerCase() === 'p' || e.key === 'Escape')) paused = !paused;
+    if (!e.repeat && e.key.toLowerCase() === 'c') toggleCockpit();
   });
   window.addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
   window.addEventListener('blur', () => keys.clear());

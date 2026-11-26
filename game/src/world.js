@@ -25,7 +25,11 @@ export function createWorld({ seed = 1, mission = 'ring' } = {}) {
     ? [
         { x: 0, y: 1700, z: 3500, r: 150, collected: false },
         { x: 400, y: 900, z: 12000, r: 150, collected: false },
-        { x: -300, y: 700, z: 18000, r: 150, collected: false },
+        // M12-fix K1: ring 3 was y=700 — its whole disc (bottom 550 ft)
+        // sat below Hijau's peak (900 ft), so the ring was buried in the
+        // mountain. y=1150 puts the bottom (1000 ft) 100 ft clear of the
+        // peak; see tests/world.test.js ring-clearance invariant.
+        { x: -300, y: 1150, z: 18000, r: 150, collected: false },
       ]
     : [];
   return {

@@ -81,7 +81,6 @@ function startMission() {
 }
 
 function endDay(landed) {
-  saveBest();
   const title = document.getElementById('debrief-title');
   const body = document.getElementById('debrief-body');
   const rankLine = document.getElementById('debrief-rank');
@@ -107,6 +106,9 @@ function endDay(landed) {
       : 'Misi gagal — bahan bakar habis atau waktu habis.';
     rankLine.textContent = `Courier ${econ.rank} · Total KR ${econ.kr}`;
   }
+  // M12-fix S1: save AFTER the reward/landing points land, so the best
+  // rank/KR on the title screen is current, not one day behind.
+  saveBest();
   document.getElementById('btn-next').textContent = day >= 3 ? 'FINISH' : 'NEXT DAY';
   showScreen('debrief');
 }
@@ -232,14 +234,25 @@ if (shotName) {
       }
       if (world.plane.landed || world.plane.crashed) endDay(world.plane.landed);
       else if (run && run.status === 'failed') endDay(false);
+      // M12-fix K2: fuel-out, stopped on the ground — the day is over for
+      // every kind. Without this the ring mission has no fail path at all
+      // and the game soft-locks on the play screen (fuel 0, speed 0,
+      // airborne false, landed/crashed false). A gliding plane is NOT
+      // failed — it can still land. Also covers precision-after-pickup
+      // (missions.js only fails fuel-out before pickup) and the
+      // complete-but-stuck case (endDay pays the reward then).
+      else if (run && world.plane.fuel <= 0 && world.plane.speed < 1
+        && !world.plane.airborne && !world.plane.landed && !world.plane.crashed) {
+        endDay(false);
+      }
     }
     document.body.classList.toggle('cockpit', screen === 'play' && isCockpit());
     document.body.classList.toggle('chase', screen === 'play' && !isCockpit());
-    if (screen === 'pause' || isPaused()) {
-      if (screen === 'play' && isPaused()) showScreen('pause');
-    } else if (screen === 'pause' && !isPaused()) {
-      showScreen('play');
-    }
+    // M12-fix K3: sync the visible screen to the pause flag. The old
+    // `screen === 'pause' || isPaused()` swallowed the resume branch —
+    // pressing P on the pause screen never returned to play.
+    if (screen === 'play' && isPaused()) showScreen('pause');
+    else if (screen === 'pause' && !isPaused()) showScreen('play');
     updateScene(view, world, dt, getOrbit(), isCockpit());
     renderer.render(view.scene, view.camera);
   });
