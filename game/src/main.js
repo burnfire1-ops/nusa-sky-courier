@@ -162,9 +162,14 @@ if (shotName) {
   if (shotName === 'start') document.body.classList.add('shot-start');
   // M8-fix, shot 3 only: 2° three-quarter rear chase (breaks the tail's
   // "red cross" read) + a lower camera (pulls the ILS mast up into the
-  // frame so it reads as an antenna, not a clipped glitch). Other shots
-  // keep the straight chase; shot 4/end is untouched.
-  const shotOrbit = shotName === 'landing' ? { yaw: 2, pitch: -80 } : { yaw: 0, pitch: 0 };
+  // frame so it reads as an antenna, not a clipped glitch). M9-fix Rank 2:
+  // pull back 40 ft (zoom) on landing AND end — probe showed Y+2 moves
+  // bar2 by ~2 px (no-op) and pitch can't clear it, but zoom+40 lifts
+  // bar2 ~35 px into frame (mast + both bars visible); the ILS pad stays
+  // below frame, so the mast exits the bottom edge like a grounded pole.
+  const shotOrbit = shotName === 'landing'
+    ? { yaw: 2, pitch: -80, zoom: 40 }
+    : shotName === 'end' ? { yaw: 0, pitch: 0, zoom: 40 } : { yaw: 0, pitch: 0 };
   if (shotName === 'end') {
     run = createMissionRun(MISSIONS[0], world);
     run.status = 'complete';

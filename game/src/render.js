@@ -197,9 +197,12 @@ function propTexture() {
   canvas.height = 128;
   const ctx = canvas.getContext('2d');
   const g = ctx.createRadialGradient(64, 64, 8, 64, 64, 64);
-  g.addColorStop(0, 'rgba(220,220,220,0.05)');
-  g.addColorStop(0.7, 'rgba(220,220,220,0.35)');
-  g.addColorStop(1, 'rgba(240,240,240,0.75)');
+  // M9-fix Rank 1: soft falloff to a transparent rim (was 0.75 bright rim —
+  // the disc read as a solid white circle). Peak mid-disc 0.25; effective
+  // alpha is texture x material opacity (chase max 0.28).
+  g.addColorStop(0, 'rgba(255,255,255,0.06)');
+  g.addColorStop(0.5, 'rgba(255,255,255,0.25)');
+  g.addColorStop(1, 'rgba(255,255,255,0.0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 128, 128);
   const tex = new THREE.CanvasTexture(canvas);
@@ -645,7 +648,7 @@ export function buildScene(world) {
   const prop = new THREE.Mesh(
     new THREE.CircleGeometry(26, 24),
     new THREE.MeshBasicMaterial({
-      map: propTexture(), color: 0xffffff, transparent: true, opacity: 0.3,
+      map: propTexture(), color: 0xffffff, transparent: true, opacity: 0.25,
       side: THREE.DoubleSide, forceSinglePass: true, depthWrite: false,
     }),
   );
@@ -711,11 +714,12 @@ export function updateScene(view, world, dt, camOrbit, cockpit = false) {
   view.plane.rotation.x = p.pitch * DEG;
   // Prop blur disc: opacity grows with throttle (a still disc at idle).
   // Fainter in the cockpit — from the pilot's seat it sits right in the
-  // eyeline and would wash out the mountain ahead. M9: higher base so
-  // the radial-gradient disc reads in chase view too.
+  // eyeline and would wash out the mountain ahead. M9-fix Rank 1: chase
+  // capped at 0.28 (was 0.55 at full throttle — solid white circle that
+  // drowned the two-tone livery); texture rim is now transparent.
   view.prop.material.opacity = cockpit
     ? 0.08 + p.throttle * 0.12
-    : 0.2 + p.throttle * 0.35;
+    : 0.15 + p.throttle * 0.13;
   // Rings spin slowly; collected rings hide.
   for (let i = 0; i < view.ringMeshes.length; i += 1) {
     view.ringMeshes[i].rotation.z += dt * 0.4;
