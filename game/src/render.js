@@ -4,6 +4,8 @@
 // world state: buildScene creates them once, updateScene copies world
 // state onto them every frame. M10: smooth lathe + soft tier blend,
 // asphalt runway, two-layer soft clouds, sea foam, stealth jet.
+// M11: natural volcano — asymmetric silhouette, crater + lava pool +
+// lava flow, irregular ridges (volcano only; city/green byte-identical).
 import * as THREE from 'three';
 import { PALETTE, ISLANDS, LANDMARKS, CAMERA, PERF } from './config.js';
 import { mergeGeometries } from './merge.js';
@@ -33,6 +35,44 @@ function hash2(x, z) {
 
 const _tierColor = new THREE.Color();
 const _tierBlend = new THREE.Color();
+const _lavaColor = new THREE.Color(PALETTE.lava);
+const _rockDarkColor = new THREE.Color(PALETTE.rockDark);
+
+function smoothstep(edge0, edge1, x) {
+  const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+// M11.1: low-frequency angular asymmetry for the volcano (threejs-geometry:
+// a lathe is symmetric by construction, so the radius is modulated per
+// angle with a seeded sum of sines). The fixed cos term guarantees the
+// east flank reads wider than the west from the front camera (shot 1
+// looks north): mod(0) - mod(PI) ≈ 0.14 for Bara (probed in node before
+// coding). Range over all angles is 0.89..1.13, inside the ±15% guide.
+// Exported for the unit test (pure math, no THREE use beyond hash2).
+// Volcano-only by design: city/green stay byte-identical because the
+// village (fixed y) and the palms (islandSurfaceY) sit on their exact
+// current surface — modulating them would float/bury landmarks.
+export function volcanoAngleMod(island, a) {
+  const p2 = hash2(island.x * 0.01 + island.z * 0.01, 23) * Math.PI * 2;
+  const p3 = hash2(island.x * 0.01 + island.z * 0.01, 37) * Math.PI * 2;
+  return 1 + 0.08 * Math.cos(a - 0.3) + 0.04 * Math.sin(2 * a + p2) + 0.03 * Math.sin(3 * a + p3);
+}
+
+// M11.2: lava-flow mask (0..1) — a wavy orange tongue down the south
+// face (a = -PI/2, facing the runway / shot-1 camera), spilling from
+// the crater notch to mid-slope, so the crater lava reads from the
+// front (shots 1/3), not only from above (shot 2). Pure + seeded.
+function lavaFlowMask(island, a, y) {
+  const h = island.height;
+  if (y < h * 0.5 || y > h * 0.98) return 0;
+  const da = Math.atan2(Math.sin(a + Math.PI / 2), Math.cos(a + Math.PI / 2));
+  const halfW = 0.13 + 0.05 * Math.sin(y * 0.02 + hash2(island.x * 0.01, 71) * 6);
+  const edge = smoothstep(halfW, halfW * 0.5, Math.abs(da));
+  if (edge <= 0) return 0;
+  const vertical = smoothstep(0.5, 0.65, y / h);
+  return edge * vertical * 0.85;
+}
 // Pure tier colour at height y (no jitter, no blending) — shared by
 // tierColor and its boundary blend.
 function tierHex(kind, y, h) {
@@ -100,8 +140,22 @@ function islandProfile(island) {
     new THREE.Vector2(r * 0.8, h * 0.3),
     new THREE.Vector2(r * 0.55, h * 0.6),
     new THREE.Vector2(r * 0.3, h * 0.85),
-    new THREE.Vector2(0, h),
   ];
+  // M11.2: the volcano summit is a crater, not a point — rim crest at
+  // exactly h (max height unchanged), inner wall down to a lava floor
+  // at 0.92h. Other islands keep the old pointed peak. islandSurfaceY
+  // still works on this profile: its d-lookup finds the inner-wall
+  // segment for d in [0.14r, 0.20r] and the floor segment below that.
+  if (island.kind === 'volcano') {
+    base.push(
+      new THREE.Vector2(r * 0.24, h * 0.93),
+      new THREE.Vector2(r * 0.2, h),
+      new THREE.Vector2(r * 0.14, h * 0.93),
+      new THREE.Vector2(0, h * 0.92),
+    );
+  } else {
+    base.push(new THREE.Vector2(0, h));
+  }
   const radiusAt = (y) => {
     for (let i = 0; i < base.length - 1; i += 1) {
       if (y >= base[i].y && y <= base[i + 1].y) {
@@ -145,16 +199,36 @@ function buildIslandGeometry(island) {
     let z = pos.getZ(i);
     const r = Math.hypot(x, z);
     const t = Math.min(1, Math.max(0, y / island.height));
+    const a = r > 1 ? Math.atan2(z, x) : 0;
+    const rl = r / island.radius; // radius fraction, pre-displacement
     if (r > 1) {
-      // Irregular silhouette: radial noise, strongest mid-slope, zero at
-      // beach and peak so the tiers stay clean.
-      const a = Math.atan2(z, x);
+      // M11.1: asymmetric silhouette (volcano only) — low-frequency
+      // angular modulation, faded to 0 below 0.08h so the beach ring +
+      // foam ring stay circular and the lighthouse stays on sand.
+      let nr = r;
+      if (island.kind === 'volcano') {
+        const w = smoothstep(0.08, 0.30, t);
+        nr = r * (1 + (volcanoAngleMod(island, a) - 1) * w);
+      }
+      // Micro-irregularity (M8, 80 -> 60: the low-frequency M11.1
+      // modulation now carries the silhouette, the noise is texture).
       const n = hash2(Math.cos(a) * 5 + island.x * 0.01, Math.sin(a) * 5 + island.z * 0.01) - 0.5;
-      const nr = r + n * 80 * Math.sin(Math.PI * t);
+      nr += n * 60 * Math.sin(Math.PI * t);
       x = (x / r) * nr;
       z = (z / r) * nr;
       pos.setX(i, x);
       pos.setZ(i, z);
+    }
+    // M11.2: crater notch on the south face (a = -PI/2 faces the runway
+    // and the shot-1 camera, which looks north) — the rim dips ~0.08h
+    // there so the crater + lava read from the front, not only from
+    // above. Fades to 0 below 0.88h; the crater floor tilts with it.
+    // Colours below still use the original y (profile height), not the
+    // notched y, so the tiers stay tied to the profile.
+    if (island.kind === 'volcano' && y > island.height * 0.88) {
+      const notch = Math.pow(Math.max(0, Math.cos(a + Math.PI / 2)), 2);
+      const wy = (y / island.height - 0.88) / 0.12;
+      pos.setY(i, y - notch * 0.08 * island.height * wy);
     }
     tierColor(island.kind, y, island.height, island.x + x, island.z + z, _tierColor);
     // M9 gullies: darker radial wedges down the slope, seeded per angle
@@ -162,9 +236,31 @@ function buildIslandGeometry(island) {
     // so the bands read as carved terrain, not flat paint. Skipped on
     // beach + snow so those stay bright and crisp.
     if (y > 8 && t <= 0.82) {
-      const a = Math.atan2(z, x);
-      const g = 0.88 + 0.2 * hash2(Math.cos(a) * 7 + island.x * 0.01, Math.sin(a) * 7 + island.z * 0.01);
+      let g = 0.88 + 0.2 * hash2(Math.cos(a) * 7 + island.x * 0.01, Math.sin(a) * 7 + island.z * 0.01);
+      if (island.kind === 'volcano') {
+        // M11.3: irregular ridges — a low-frequency envelope makes some
+        // sectors deeply carved and others nearly smooth, instead of
+        // uniform wedges all around. Broad wedges (freq 3) + the fine
+        // M9 variation, so ridges read at both distances.
+        const env = 0.5 + 0.5 * Math.sin(3 * a + hash2(island.x * 0.01, 51) * Math.PI * 2);
+        const broad = hash2(Math.cos(a) * 3 + island.x * 0.01, Math.sin(a) * 3 + island.z * 0.01);
+        g = 1 - env * (0.05 + 0.22 * broad);
+      }
       _tierColor.multiplyScalar(g);
+    }
+    // M11.2 crater interior (volcano only): dark rim + glowing floor,
+    // so the bowl reads as a crater from above (shot 2) instead of a
+    // pale snow cap. Outer wall (rl > 0.215) keeps its tier colour.
+    if (island.kind === 'volcano' && y > island.height * 0.90 && rl < 0.215) {
+      if (rl < 0.155) _tierColor.lerp(_lavaColor, 0.6);
+      else _tierColor.lerp(_rockDarkColor, 0.75);
+    }
+    // M11.2 lava flow (volcano only): vertex-colour tongue from the
+    // notch down the south face — 0 draw calls. The pool disc below
+    // covers the from-above view; the flow covers the front view.
+    if (island.kind === 'volcano') {
+      const flow = lavaFlowMask(island, a, y);
+      if (flow > 0) _tierColor.lerp(_lavaColor, flow);
     }
     colors[i * 3] = _tierColor.r;
     colors[i * 3 + 1] = _tierColor.g;
@@ -452,14 +548,17 @@ export function buildScene(world) {
     islandMesh.receiveShadow = true;
     scene.add(islandMesh);
     if (island.kind === 'volcano') {
-      // M9: bigger, hotter lava cap (0.30r, emissive 2.4) — the old
-      // 0.22r cap read as a small orange tip, not a crater.
-      const cap = new THREE.Mesh(
-        new THREE.ConeGeometry(island.radius * 0.3, island.height * 0.26, 12),
-        new THREE.MeshStandardMaterial({ color: PALETTE.lava, emissive: 0xff3d00, emissiveIntensity: 2.4, roughness: 0.6 }),
+      // M11.2: lava pool inside the crater (replaces the M9 cone cap,
+      // which poked above the peak like a spike) — flat disc on the
+      // crater floor, same 1 draw call, emissive orange so it reads
+      // from above (shot 2) and through the south rim notch (shot 1).
+      const pool = new THREE.Mesh(
+        new THREE.CircleGeometry(island.radius * 0.12, 24),
+        new THREE.MeshStandardMaterial({ color: PALETTE.lava, emissive: 0xff3d00, emissiveIntensity: 2.4, roughness: 0.6, side: THREE.DoubleSide }),
       );
-      cap.position.set(island.x, island.height - 10, island.z);
-      scene.add(cap);
+      pool.rotation.x = -Math.PI / 2;
+      pool.position.set(island.x, island.height * 0.925, island.z);
+      scene.add(pool);
     }
     if (island.kind === 'city') {
       // Village: cream/tan bodies + red pyramid roofs, 2 InstancedMesh.

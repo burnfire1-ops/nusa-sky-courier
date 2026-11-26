@@ -419,3 +419,110 @@ game-feel — dikutip di header render.js/hud.js):
   shot, kamera, flight model, nilai HUD, logika HUD, panel title/
   debrief, pencahayaan global, smoothing fuselage, kontras tier
   volcano (Rank 3 Gemini: dilewati).
+
+## M11 Natural Volcano — DONE 27 Nov ~04:0x WIB (user: bentuk gunung
+## aneh — kerucut simetris sempurna, puncak rata, alas lingkaran
+## sempurna; arah "Naturalin gunung: asimetris + kawah + ridge")
+
+Skills (router step 0: three.js r187 vendored → threejs-geometry,
+threejs-materials-lighting, threejs-scene-setup,
+performance-optimization — dikutip di header render.js):
+- threejs-geometry: LatheGeometry profile dengan puncak kawah (lipatan
+  profil), displacment vertex per-sudut pasca-lathe, computeVertexNormals
+  ulang; segment count tetap 48 (cukup untuk modulasi low-freq).
+- threejs-materials-lighting: vertex-color lava flow + crater interior,
+  emissive lava pool (2.4, sama seperti lava cap lama).
+- threejs-scene-setup: renderer/loop tidak berubah; verifikasi via CDP
+  real-time seperti M8-M10.
+- performance-optimization: budget diukur per shot via renderer.info
+  (2 run CDP M10 sudah membuktikan determinisme; capture M11 1 run +
+  angka-angka konsisten dengan baseline); +0 draw call, +~300 tris.
+
+### Keputusan desain (didokumentasikan — penting)
+- **HANYA volcano yang diubah** (kind === 'volcano'). City/green
+  byte-identical. Alasan, diverifikasi via grep: `islandSurfaceY`
+  satu-satunya konsumen adalah penempatan palem di pulau hijau
+  (render.js:515/536); desa Tanjung duduk di y tetap; world.js TIDAK
+  memakai tinggi terrain sama sekali (ground = y=0, tanpa collision
+  pulau). Modulasi radius pulau hijau/kota akan membuat palem
+  melayang/tenggelam dan rumah desa mengambang/terkubur — risiko tanpa
+  manfaat visual (keduanya background jauh). Modulasi volcano tidak
+  butuh sinkronisasi `islandSurfaceY` karena tidak ada yang menanyakan
+  permukaan Bara. (Brief mengizinkan pembatasan ini bila sinkronisasi
+  penuh terlalu berisiko; di sini pembatasan justru menghilangkan
+  kebutuhan sinkronisasi.)
+- **Modulasi radius per sudut**: `volcanoAngleMod(island, a)` =
+  1 + 0.08·cos(a−0.3) + 0.04·sin(2a+p2) + 0.03·sin(3a+p3), p2/p3
+  seeded hash2 dari posisi pulau. Suku cos tetap MENJAMIN asimetri
+  timur-barat dari kamera depan (shot 1 menghadap utara): diprobe di
+  node SEBELUM coding — mod(0)=1.085, mod(π)=0.946 (selisih 0.140),
+  rentang 0.894..1.124 (dalam panduan ±15%). Diterapkan dengan fade
+  smoothstep 0.08h→0.30h supaya beach ring + foam ring tetap
+  lingkaran sempurna dan mercusuar tetap di pasir.
+- **Kawah**: profil lathe puncak diubah dari titik (0,h) menjadi
+  rim (0.20r, h) → dinding dalam (0.14r, 0.93h) → lantai (0, 0.92h).
+  Tinggi maksimum TETAP h (rim crest di 1.00h). `islandSurfaceY`
+  tetap benar pada profil ini (d-lookup menemukan segmen dinding
+  dalam untuk d ∈ [0.14r, 0.20r] dan lantai di bawahnya).
+  Notch di sisi selatan (a=−π/2, menghadap runway/kamera shot 1):
+  rim turun ~0.08h di sana supaya kawah + lava terbaca dari depan,
+  bukan hanya dari atas. Lantai kawah ikut miring dengan notch.
+- **Lava**: cone cap M9 DIGANTI lava pool disc (r 0.12r di y=0.925h,
+  emissive 2.4, 1 draw call — sama seperti cone) + lava flow
+  vertex-color di sisi selatan (0 draw call): lidah oranye dari
+  notch turun ke 0.5h, lebar bergelombang ±0.13 rad — lava dari
+  depan (shot 1/3), pool dari atas (shot 2).
+- **Ridge**: envelope low-freq sin(3a+phase) pada gully M9 — ada
+  sektor yang terukir dalam, ada yang hampir halus; broad wedge
+  (freq 3) + variasi halus M9. Hanya volcano.
+
+### M11.1 Asimetris — LOLOS (percobaan 1)
+Shot 1: siluet jelas tidak lagi segitiga simetris — flank timur
+lebih lebar/landai, barat lebih curam, puncak off-center; alas
+tetap lingkaran (foam ring menempel). Shot 3: puncak off-center
+dengan notch terbaca. **LOLOS.**
+
+### M11.2 Kawah — LOLOS (percobaan 1)
+Shot 2 (kokpit, dari atas): mangkuk kawah + lava oranye menyala di
+puncak terbaca jelas, flow turun ke arah kamera. Shot 1/3 (depan):
+notch di siluet puncak + lava flow oranye terang dari puncak ke
+mid-slope — terbaca sebagai kawah + lava, bukan meja datar. Ring
+emas tetap di atas puncak. Catatan jujur: pool lava-nya sendiri
+tidak terlihat langsung dari sudut rendah shot 1 (sudah diduga —
+pool menghadap ke atas); yang terbaca dari depan adalah notch +
+flow. **LOLOS.**
+
+### M11.3 Ridge — LOLOS (percobaan 1)
+Shot 1: flank kiri menunjukkan wedge gelap tidak beraturan yang
+dalam, flank kanan lebih halus — bukan garis-garis seragam; 4 zona
+tier tetap terbaca (pasir / coklat gelap / tan / puncak pucat +
+lava). Shot 3: tekstur lereng terbaca dari jarak landing. **LOLOS.**
+
+### Verifikasi akhir M11
+- Re-capture CDP keempat shot: start 26 calls / 13.280 tris; play
+  (kokpit) 19 / 12.782; landing 28 / 13.380; end 28 / 13.380 —
+  semua <30 calls, <40k tris (+~300 tris vs M10-fix: cincin profil
+  kawah; +0 draw call — pool menggantikan cone 1:1, flow vertex
+  color 0 call).
+- JPEG q88: 1-start 86 KiB, 2-play 98 KiB, 3-landing 107 KiB,
+  4-end 65 KiB (1280×633, ≤256 KiB). Dossier rebuild: 581.124
+  byte, 4 gambar, schema v1.
+- Test 31/31 hijau. Kit check: 4 passed / 1 failed
+  transcripts_present (urusan parent).
+- PNG: /tmp/nusa-m11-{start,play,landing,end}.png.
+- TIDAK disentuh: world.js, economy.js, missions.js, ISLANDS
+  (x/z/radius/height), staging shot, kamera, flight model, nilai
+  HUD, logika HUD, pesawat siluman, panel title/debrief,
+  pencahayaan global, landmark, awan, laut.
+- Catatan jujur: (1) pool lava mengambang maks ~44 ft di atas
+  lantai kawah sisi selatan (lantai ikut miring dengan notch,
+  pool tetap datar) — tidak terlihat di screenshot manapun
+  (celah tersembunyi di balik dinding kawah); (2) flow lava agak
+  lebar/blobby di dekat puncak shot 1 — terbaca sebagai aliran
+  lava, bukan artefak; (3) tidak ada unit test baru — logika murni
+  (volcanoAngleMod) hidup di render.js yang mengimpor 'three'
+  (tidak bisa di-resolve node --test tanpa node_modules; repo ini
+  tidak punya node_modules); verifikasi numerik diganti probe node
+  (mod(0)/mod(π)/rentang di atas) + screenshot.
+- Commit + push: `M11` (local == remote, main). Server serve.ts
+  dimatikan.
