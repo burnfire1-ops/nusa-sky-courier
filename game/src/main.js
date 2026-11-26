@@ -154,6 +154,14 @@ if (shotName) {
   // Cockpit view comes from the shot staging (play = cockpit in M8).
   setCockpit(!!staged.cockpit);
   document.body.classList.toggle('cockpit', isCockpit());
+  // M8-fix, shot 1 only: dock the title card left so the volcano + sea +
+  // runway read beside it on the cover image. Normal play is untouched.
+  if (shotName === 'start') document.body.classList.add('shot-start');
+  // M8-fix, shot 3 only: 2° three-quarter rear chase (breaks the tail's
+  // "red cross" read) + a lower camera (pulls the ILS mast up into the
+  // frame so it reads as an antenna, not a clipped glitch). Other shots
+  // keep the straight chase; shot 4/end is untouched.
+  const shotOrbit = shotName === 'landing' ? { yaw: 2, pitch: -80 } : { yaw: 0, pitch: 0 };
   if (shotName === 'end') {
     run = createMissionRun(MISSIONS[0], world);
     run.status = 'complete';
@@ -170,7 +178,7 @@ if (shotName) {
   pre.textContent = 'PENDING';
   document.body.appendChild(pre);
   renderer.setAnimationLoop(() => {
-    updateScene(view, world, 1 / 30, { yaw: 0, pitch: 0 }, isCockpit());
+    updateScene(view, world, 1 / 30, shotOrbit, isCockpit());
     if (staged.screen === 'play') {
       const missionText = shotName === 'landing' ? 'Final approach — flare before touchdown' : `Cincin ${world.collected}/${world.rings.length}`;
       if (isCockpit()) updateCockpit(world, econ, missionText);

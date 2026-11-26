@@ -31,6 +31,13 @@
   #compass-tape { display: none; position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 5; }
   body.cockpit #cockpit-panel, body.cockpit #compass-tape { display: block; }
   body.cockpit #hud .top-left, body.cockpit #hud .top-right, body.cockpit #hud .bottom-center { display: none; }
+  /* Shot 1 (cover) staging ONLY — set by main.js in ?shot=start mode.
+     The title card docks to the left third and the veil fades to clear on
+     the right, so the volcano, sea glint and runway stay visible beside
+     the panel. The normal title screen is unchanged (centred, full veil). */
+  body.shot-start #screen-title { justify-content: flex-start; padding-left: 24px; background: linear-gradient(to right, rgba(16, 10, 30, 0.8) 0%, rgba(16, 10, 30, 0.62) 42%, rgba(16, 10, 30, 0.15) 68%, rgba(16, 10, 30, 0) 100%); }
+  body.shot-start #screen-title .panel { max-width: 300px; padding: 20px 22px; }
+  body.shot-start #screen-title .panel h1 { font-size: 28px; letter-spacing: 1px; }
 </style>
 <script type="importmap">
 { "imports": { "three": "./vendor/three.module.js" } }
