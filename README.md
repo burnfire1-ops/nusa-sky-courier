@@ -1,3 +1,9 @@
+[![make.fun · best-flight-game-20261126-0057](https://make.fun/badge/best-flight-game-20261126-0057.svg)](https://make.fun/bounty/best-flight-game-20261126-0057?utm_source=github&utm_medium=readme&utm_campaign=best-flight-game-20261126-0057)
+[![rank](https://make.fun/badge/best-flight-game-20261126-0057/burnfire1-ops/nusa-sky-courier/rank.svg)](https://make.fun/bounty/best-flight-game-20261126-0057/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=best-flight-game-20261126-0057)
+[![reward](https://make.fun/badge/best-flight-game-20261126-0057/burnfire1-ops/nusa-sky-courier/reward.svg)](https://make.fun/bounty/best-flight-game-20261126-0057?utm_source=github&utm_medium=readme&utm_campaign=best-flight-game-20261126-0057)
+
+Built for the [make.fun bounty](https://make.fun/bounty/best-flight-game-20261126-0057).
+
 # Nusa Sky Courier
 
 A 3D courier flight game set in a volcanic archipelago at dusk. Fly a small cargo plane between three islands, thread golden rings, land precisely on short runways, and build your courier rank — PEMULA to LEGENDA — one delivery at a time.
