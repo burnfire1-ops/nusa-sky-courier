@@ -14,7 +14,7 @@ function setText(id, value) {
   }
 }
 
-export function updateHud(world, econ, missionText) {
+export function updateHud(world, econ, missionText, extra = {}) {
   const p = world.plane;
   setText('hud-alt', String(Math.round(p.y)));
   setText('hud-spd', String(Math.round(p.speed)));
@@ -36,6 +36,28 @@ export function updateHud(world, econ, missionText) {
     }
   }
   drawRadar(world);
+  // M9.3 — chase-view flight tapes (speed left, altitude right), chase
+  // compass tape (reuses the cockpit tape drawing), throttle/fuel/hull
+  // bars and the objective panel. DOM/canvas overlay only: 0 extra
+  // WebGL draw calls. (game-ui-ux: anchored edge instruments.)
+  const spdTape = el('tape-spd');
+  if (spdTape) drawTape(spdTape.getContext('2d'), spdTape.width, spdTape.height, p.speed, 0, 200, 60, 20, 40);
+  const altTape = el('tape-alt');
+  if (altTape) drawTape(altTape.getContext('2d'), altTape.width, altTape.height, p.y, 0, 5000, 1000, 250, 500);
+  const chaseTape = el('chase-compass-canvas');
+  if (chaseTape) drawCompassTape(chaseTape.getContext('2d'), chaseTape.width, chaseTape.height, world);
+  setBar('bar-thr', p.throttle * 100, 0);
+  setText('bar-thr-v', `${Math.round(p.throttle * 100)}%`);
+  setBar('bar-fuel', p.fuel, 20);
+  setText('bar-fuel-v', `${Math.round(p.fuel)}%`);
+  setBar('bar-hull', p.hull, 40);
+  setText('bar-hull-v', `${Math.round(p.hull)}%`);
+  setText('obj-title', extra.title || '—');
+  setText('obj-rings', `Cincin ${world.collected}/${world.rings.length}`);
+  setText('obj-clock', extra.timeLimit
+    ? `Sisa ${formatClock(extra.timeLimit - (extra.elapsed || 0))}`
+    : `Waktu ${formatClock(extra.elapsed || 0)}`);
+  setText('obj-day', `DAY ${extra.day || 1} · KR ${econ.kr}`);
 }
 
 function drawRadar(world) {
@@ -76,6 +98,73 @@ function drawRadar(world) {
   ctx.moveTo(0, -7); ctx.lineTo(5, 6); ctx.lineTo(-5, 6); ctx.closePath();
   ctx.fill();
   ctx.restore();
+}
+
+// ---- M9.3 chase-view instruments: tapes, bars, objective ----
+// Pure helper (unit-tested in tests/hud.test.js).
+export function formatClock(seconds) {
+  const s = Math.max(0, Math.floor(seconds));
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+}
+
+// Vertical aviation tape: a moving scale centred on the current value,
+// major ticks labelled, current value in an amber box. value is clamped
+// to [min, max]; span is the half-window shown above/below centre.
+function drawTape(ctx, W, H, value, min, max, span, majorStep, labelStep) {
+  const v = Math.max(min, Math.min(max, value));
+  const cy = H / 2;
+  const pxPerUnit = H / (span * 2);
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(16, 10, 30, 0.72)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(255, 194, 51, 0.5)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(0.5, 0.5, W - 1, H - 1);
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'left';
+  for (let t = Math.ceil((v - span) / majorStep) * majorStep; t <= v + span; t += majorStep) {
+    if (t < min || t > max) continue;
+    const y = cy - (t - v) * pxPerUnit;
+    const labelled = t % labelStep === 0;
+    ctx.strokeStyle = labelled ? AMBER : '#8888aa';
+    ctx.lineWidth = labelled ? 2 : 1;
+    ctx.beginPath();
+    ctx.moveTo(W - 14, y);
+    ctx.lineTo(W - (labelled ? 4 : 8), y);
+    ctx.stroke();
+    if (labelled) {
+      ctx.fillStyle = '#f2e3c6';
+      ctx.fillText(String(t), 4, y + 4);
+    }
+  }
+  // Current-value box + pointer.
+  ctx.fillStyle = 'rgba(16, 10, 30, 0.95)';
+  ctx.fillRect(0, cy - 13, W, 26);
+  ctx.strokeStyle = AMBER;
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(0.5, cy - 13.5, W - 1, 27);
+  ctx.fillStyle = AMBER;
+  ctx.font = 'bold 14px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(String(Math.round(v)), W / 2, cy + 5);
+  ctx.beginPath();
+  ctx.moveTo(W - 2, cy - 5);
+  ctx.lineTo(W - 2, cy + 5);
+  ctx.lineTo(W - 9, cy);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function setBar(id, pct, warnAt) {
+  const node = el(id);
+  if (!node) return;
+  const key = `bar:${id}`;
+  const v = Math.round(Math.max(0, Math.min(100, pct)));
+  if (last[key] !== v) {
+    last[key] = v;
+    node.style.width = `${v}%`;
+    node.classList.toggle('low', v < warnAt);
+  }
 }
 
 // ---- Cockpit view: 6 live analog dials + compass tape (canvas) ----

@@ -106,3 +106,84 @@ sama. Radar tidak kosong — hanya kecil di JPEG. Tidak ada perubahan kode.
 - Commit + push: `311c736` (local == remote, main). Server serve.ts dimatikan.
 - TIDAK disentuh: world.js, economy.js, missions.js, ISLANDS, noise volcano, awan,
   geometri kokpit, shot 2-play, shot 4-end. Tidak ada draw call tambahan.
+
+## M9 Detailing — DONE 27 Nov ~02:3x WIB (user: screenshot masih minimalis; arah "Detailin terrain + pesawat" + "HUD juga minimalis")
+
+Skills (router step 0: three.js r187 vendored → threejs-scene-setup,
+threejs-materials-lighting, threejs-geometry, game-ui-ux, game-feel,
+performance-optimization — dikutip di header file yang diubah):
+- threejs-geometry: lathe profile rings di batas tier + merged vertex-color
+  parts pesawat (tanpa draw call baru); threejs-materials-lighting:
+  vertex-color step + emissive lava cap + CanvasTexture radial prop disc;
+  game-ui-ux: HUD chase edge-anchored (tape kiri/kanan, bar bawah-kiri,
+  objective bawah-kanan, compass tape atas-tengah) supaya pesawat/runway/
+  ring di tengah tetap bersih; game-feel: tape/bar adalah instrumen yang
+  bergerak mengikuti penerbangan, bukan teks statis; performance-optimization:
+  budget diukur per shot via renderer.info, 0 draw call WebGL baru (HUD
+  murni DOM/canvas overlay).
+
+### M9.1 Terrain (render.js + config.js, ISLANDS tidak berubah)
+- `islandProfile`: ring tambahan tepat di batas tier (sand edge y=10 +
+  batas 0.35/0.6/0.82 volcano, 0.35/0.7 city/green) via interpolasi pada
+  garis profil lama — warna step jatuh di vertex (pita tegas), dan
+  `islandSurfaceY` tidak berubah (titik sisipan segaris). Beach apron
+  dilebarkan (1.10r/1.03r) + ambang pasir y<=8.
+- `tierColor`: kontras tier dipertajam (rockDark 0x4a3423, rockMid baru
+  0x7a4a28, rockLight 0xa88a5f, snow 0xefe9dc, sand 0xd8b47e,
+  greenDeep 0x2a5c2e / greenBright 0x3f8a37); jitter dikecilkan
+  (0.94–1.06) supaya pita, bukan noise, yang terbaca.
+- Gully radial: wedge gelap per sudut (hash2 sudut, 0.88–1.08) di lereng
+  saja (bukan beach/salju) — lereng terbaca terukir.
+- Lava cap: 0.22r → 0.30r, emissive 1.6 → 2.4 (kawah kini terbaca jelas).
+- Verifikasi shot 1: ring pasir pucat mengelilingi pulau, 4 zona terbaca
+  (pasir / coklat gelap bawah / tan atas / puncak pucat + lava oranye),
+  gully radial kelihatan. **LOLOS** (catatan: pita rockMid masih paling
+  lembut — key light senja + ACES mengaburkan merah; 4 zona tetap terbaca).
+
+### M9.2 Pesawat (render.js, merged mesh yang sama — 0 draw call baru)
+- Fin oranye → cream + stripe oranye di atas; tailplane dipecah (tengah
+  cream, ujung oranye); wingtip cream; canopy 0x1c2f4a → 0x0e1a2c
+  (lebih gelap); prop disc pakai CanvasTexture radial (hub samar, rim
+  terang) + opacity naik (chase 0.2+thr×0.35, kokpit 0.08+thr×0.12);
+  nav light r 3 → 5; gear: kaki 2.5 → 3, roda r 5 → 6 (pusat y −6,
+  dasar roda tetap −12 = menyentuh tanah).
+- Registrasi/nomor ekor DILEWATI (tidak terbaca di 1280px dari 190 ft —
+  sesuai izin brief).
+- Verifikasi shot 3: salib merah pecah (fin cream, ujung sayap cream),
+  lampu nav merah/hijau kelihatan di ujung sayap, prop disc halo putih
+  terbaca. Shot 2 kokpit: dial + hidung tidak berubah. **LOLOS.**
+
+### M9.3 HUD (hud.js + index.html + main.js, 0 draw call WebGL baru)
+- Tape kecepatan kiri (0–200 kts, window ±60) + tape ketinggian kanan
+  (0–5000 ft, window ±1000) — canvas 72×320, nilai di kotak amber.
+- Compass tape chase (canvas 560×36, atas-tengah, pakai drawCompassTape
+  yang sama dengan kokpit); `body.chase` di main.js (shot + loop normal);
+  `body.cockpit` menyembunyikan semua elemen chase (dial kokpit utuh).
+- Bar THR/FUEL/HULL bawah-kiri (DOM, merah bila rendah) + panel
+  objective bawah-kanan (judul misi, Cincin x/3, timer, DAY · KR).
+  Timer dari state nyata (`world.time - run.startedAt`, sisa bila
+  timeLimit storm); `updateHud(world, econ, missionText, extra)` dengan
+  `extra` opsional; `formatClock` diekspor + test baru
+  `tests/hud.test.js` (2 test).
+- Verifikasi shot 3: tape SPD 91 / ALT 241, compass 357°, bar THR 59% /
+  FUEL 98% / HULL 100%, objective "Ring Run — Latihan Cincin, Cincin 0/3,
+  Waktu 00:00, DAY 1 · KR 0" — semua nilai benar, tidak menutupi pesawat/
+  runway/ring. **LOLOS.**
+
+### Verifikasi akhir M9
+- Re-capture CDP keempat shot (2 run, angka identik = deterministik):
+  start 23 calls / 8.856 tris; play (kokpit) 19 / 8.654; landing 25 /
+  8.956; end 25 / 8.956 — semua <30 calls, <40k tris.
+- JPEG q88: 1-start 87 KiB, 2-play 92 KiB, 3-landing 106 KiB, 4-end
+  64 KiB (1280×633, ≤256 KiB). Dossier rebuild: 551.722 byte, 4 gambar,
+  schema v1.
+- Test 31/31 hijau (29 lama + 2 hud baru). Kit check: 4 passed /
+  1 failed transcripts_present (urusan parent).
+- Commit + push: `M9` (local == remote, main). Server serve.ts dimatikan.
+- TIDAK disentuh: world.js, economy.js, missions.js, ISLANDS, awan,
+  langit, laut, panel title/debrief, staging shot (posisi/kamera tetap).
+- Catatan jujur: (1) salib kayu ILS kiri-bawah shot 3/4 masih ada
+  (sisa M8-fix, di luar scope M9) — kini terbaca sebagai struktur tanah,
+  bukan glitch melayang; (2) pita rockMid paling lembut dari 4 zona;
+  (3) prop disc halo putih di shot 1/3 cukup dominan, tapi terbaca
+  sebagai putaran baling-baling.

@@ -154,6 +154,9 @@ if (shotName) {
   // Cockpit view comes from the shot staging (play = cockpit in M8).
   setCockpit(!!staged.cockpit);
   document.body.classList.toggle('cockpit', isCockpit());
+  // M9.3: chase HUD (tapes/bars/objective/compass) shows in play shots
+  // that are not cockpit. Title/debrief shots keep it hidden.
+  document.body.classList.toggle('chase', staged.screen === 'play' && !isCockpit());
   // M8-fix, shot 1 only: dock the title card left so the volcano + sea +
   // runway read beside it on the cover image. Normal play is untouched.
   if (shotName === 'start') document.body.classList.add('shot-start');
@@ -182,7 +185,7 @@ if (shotName) {
     if (staged.screen === 'play') {
       const missionText = shotName === 'landing' ? 'Final approach — flare before touchdown' : `Cincin ${world.collected}/${world.rings.length}`;
       if (isCockpit()) updateCockpit(world, econ, missionText);
-      else updateHud(world, econ, missionText);
+      else updateHud(world, econ, missionText, { day: 1, title: MISSIONS[0].title, elapsed: 0, timeLimit: null });
     }
     renderer.render(view.scene, view.camera);
     framesRendered += 1;
@@ -215,12 +218,18 @@ if (shotName) {
       if (run) {
         const missionText = missionProgress(run, world);
         if (isCockpit()) updateCockpit(world, econ, missionText);
-        else updateHud(world, econ, missionText);
+        else updateHud(world, econ, missionText, {
+          day,
+          title: run.mission.title,
+          elapsed: world.time - run.startedAt,
+          timeLimit: run.mission.timeLimit ?? null,
+        });
       }
       if (world.plane.landed || world.plane.crashed) endDay(world.plane.landed);
       else if (run && run.status === 'failed') endDay(false);
     }
     document.body.classList.toggle('cockpit', screen === 'play' && isCockpit());
+    document.body.classList.toggle('chase', screen === 'play' && !isCockpit());
     if (screen === 'pause' || isPaused()) {
       if (screen === 'play' && isPaused()) showScreen('pause');
     } else if (screen === 'pause' && !isPaused()) {

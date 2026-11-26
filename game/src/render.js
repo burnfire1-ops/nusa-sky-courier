@@ -30,28 +30,38 @@ function hash2(x, z) {
 }
 
 const _tierColor = new THREE.Color();
-// Tiered colour by height fraction, with a little per-vertex jitter so the
-// slope reads as rock/vegetation, not a flat paint job.
+// Tiered colour by height fraction. M9: sharper, more separated tiers
+// (rockDark/mid/light and deep/bright green are far apart in value) so
+// the bands read as 3-4 distinct stripes, not one brown gradient. The
+// fine jitter is kept small — the bands, not the noise, must read.
 function tierColor(kind, y, h, x, z, out) {
   const t = y / h;
-  const jitter = 0.92 + 0.16 * hash2(x, z);
-  if (y <= 4) out.setHex(PALETTE.sand);
+  const jitter = 0.94 + 0.12 * hash2(x, z);
+  if (y <= 8) out.setHex(PALETTE.sand);
   else if (kind === 'volcano') {
     if (t > 0.82) out.setHex(PALETTE.snow);
     else if (t > 0.6) out.setHex(PALETTE.rockLight);
-    else if (t > 0.35) out.setHex(0x6b4a35);
+    else if (t > 0.35) out.setHex(PALETTE.rockMid);
     else out.setHex(PALETTE.rockDark);
   } else if (kind === 'city') {
     // Green hill with a grey town crown — tan only at the beach, or the
     // whole 220 ft hill reads as one flat orange pancake from above.
     if (t > 0.7) out.setHex(0x8a8578);
-    else if (t > 0.35) out.setHex(PALETTE.greenHijau);
-    else out.setHex(0x4a8a3f);
+    else if (t > 0.35) out.setHex(PALETTE.greenBright);
+    else out.setHex(PALETTE.greenDeep);
   } else if (t > 0.7) out.setHex(PALETTE.palm);
-  else if (t > 0.35) out.setHex(PALETTE.greenHijau);
-  else out.setHex(0x4a8a3f);
+  else if (t > 0.35) out.setHex(PALETTE.greenBright);
+  else out.setHex(PALETTE.greenDeep);
   out.multiplyScalar(jitter);
   return out;
+}
+
+// Tier boundaries per island kind — a ring is inserted at each boundary
+// in islandProfile so the colour step lands on vertices (crisp bands)
+// instead of interpolating across one big triangle.
+function tierBounds(kind) {
+  if (kind === 'volcano') return [0.35, 0.6, 0.82];
+  return [0.35, 0.7];
 }
 
 // Tiered island profile: beach ring at the base, slope tiers, peak.
@@ -60,14 +70,35 @@ function tierColor(kind, y, h, x, z, out) {
 function islandProfile(island) {
   const r = island.radius;
   const h = island.height;
-  return [
-    new THREE.Vector2(r * 1.08, 1),
-    new THREE.Vector2(r * 1.0, 4),
+  // M9: a wider beach apron (base 1.10r -> 1.03r over 6 ft) so the sand
+  // ring reads from the air; the old 1.08r/4 ft lip was invisible.
+  const base = [
+    new THREE.Vector2(r * 1.1, 1),
+    new THREE.Vector2(r * 1.03, 6),
     new THREE.Vector2(r * 0.8, h * 0.3),
     new THREE.Vector2(r * 0.55, h * 0.6),
     new THREE.Vector2(r * 0.3, h * 0.85),
     new THREE.Vector2(0, h),
   ];
+  const radiusAt = (y) => {
+    for (let i = 0; i < base.length - 1; i += 1) {
+      if (y >= base[i].y && y <= base[i + 1].y) {
+        const f = (y - base[i].y) / (base[i + 1].y - base[i].y);
+        return base[i].x + (base[i + 1].x - base[i].x) * f;
+      }
+    }
+    return 0;
+  };
+  // Extra rings: sand edge (y=10, crisp beach cutoff) + each tier
+  // boundary. Inserted points lie exactly on the old piecewise lines, so
+  // islandSurfaceY (landmark heights) is unchanged.
+  const extra = [10, ...tierBounds(island.kind).map((b) => h * b)];
+  for (const y of extra) {
+    if (base.some((p) => p.y === y)) continue;
+    const idx = base.findIndex((p) => p.y > y);
+    base.splice(idx === -1 ? base.length : idx, 0, new THREE.Vector2(radiusAt(y), y));
+  }
+  return base;
 }
 
 function buildIslandGeometry(island) {
@@ -92,6 +123,15 @@ function buildIslandGeometry(island) {
       pos.setZ(i, z);
     }
     tierColor(island.kind, y, island.height, island.x + x, island.z + z, _tierColor);
+    // M9 gullies: darker radial wedges down the slope, seeded per angle
+    // (threejs-geometry: per-vertex colour variation on the lathe rings),
+    // so the bands read as carved terrain, not flat paint. Skipped on
+    // beach + snow so those stay bright and crisp.
+    if (y > 8 && t <= 0.82) {
+      const a = Math.atan2(z, x);
+      const g = 0.88 + 0.2 * hash2(Math.cos(a) * 7 + island.x * 0.01, Math.sin(a) * 7 + island.z * 0.01);
+      _tierColor.multiplyScalar(g);
+    }
     colors[i * 3] = _tierColor.r;
     colors[i * 3 + 1] = _tierColor.g;
     colors[i * 3 + 2] = _tierColor.b;
@@ -151,6 +191,22 @@ function mergeParts(specs, materialOpts = {}) {
 
 // Runtime CanvasTexture — procedural, no external file (references gate:
 // only data: URIs or files inside game/).
+function propTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  const g = ctx.createRadialGradient(64, 64, 8, 64, 64, 64);
+  g.addColorStop(0, 'rgba(220,220,220,0.05)');
+  g.addColorStop(0.7, 'rgba(220,220,220,0.35)');
+  g.addColorStop(1, 'rgba(240,240,240,0.75)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 function stripeTexture() {
   const canvas = document.createElement('canvas');
   canvas.width = 64;
@@ -279,9 +335,11 @@ export function buildScene(world) {
     islandMesh.receiveShadow = true;
     scene.add(islandMesh);
     if (island.kind === 'volcano') {
+      // M9: bigger, hotter lava cap (0.30r, emissive 2.4) — the old
+      // 0.22r cap read as a small orange tip, not a crater.
       const cap = new THREE.Mesh(
-        new THREE.ConeGeometry(island.radius * 0.22, island.height * 0.22, 12),
-        new THREE.MeshStandardMaterial({ color: PALETTE.lava, emissive: 0xff3d00, emissiveIntensity: 1.6, roughness: 0.6 }),
+        new THREE.ConeGeometry(island.radius * 0.3, island.height * 0.26, 12),
+        new THREE.MeshStandardMaterial({ color: PALETTE.lava, emissive: 0xff3d00, emissiveIntensity: 2.4, roughness: 0.6 }),
       );
       cap.position.set(island.x, island.height - 10, island.z);
       scene.add(cap);
@@ -526,21 +584,35 @@ export function buildScene(world) {
   const canopyGeo = new THREE.SphereGeometry(8, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2);
   canopyGeo.translate(0, 5, 0);
   const wingGeo = new THREE.BoxGeometry(120, 4, 28);
-  const tailGeo = new THREE.BoxGeometry(45, 4, 18);
-  tailGeo.translate(0, 5, -38);
+  // M9: cream wingtips break the all-orange wing into a two-tone read.
+  const tipLGeo = new THREE.BoxGeometry(14, 4.5, 28);
+  tipLGeo.translate(-53, 0, 0);
+  const tipRGeo = new THREE.BoxGeometry(14, 4.5, 28);
+  tipRGeo.translate(53, 0, 0);
+  // M9: tailplane split — cream centre, orange tips — and a CREAM fin
+  // with an orange top stripe, so the tail no longer reads as one solid
+  // red cross against the wing from dead behind.
+  const tailCGeo = new THREE.BoxGeometry(15, 4, 18);
+  tailCGeo.translate(0, 5, -38);
+  const tailLGeo = new THREE.BoxGeometry(15, 4, 18);
+  tailLGeo.translate(-15, 5, -38);
+  const tailRGeo = new THREE.BoxGeometry(15, 4, 18);
+  tailRGeo.translate(15, 5, -38);
   const finGeo = new THREE.BoxGeometry(4, 24, 20);
   finGeo.translate(0, 10, -38);
-  const legL = new THREE.BoxGeometry(2.5, 6, 2.5);
-  legL.translate(-8, -6, 8);
-  const legR = new THREE.BoxGeometry(2.5, 6, 2.5);
-  legR.translate(8, -6, 8);
-  const legL2 = new THREE.BoxGeometry(2.5, 6, 2.5);
-  legL2.translate(-8, -7, -18);
-  const legR2 = new THREE.BoxGeometry(2.5, 6, 2.5);
-  legR2.translate(8, -7, -18);
-  const wheelGeo = new THREE.CylinderGeometry(5, 5, 3, 10);
+  const finStripeGeo = new THREE.BoxGeometry(5, 5, 21);
+  finStripeGeo.translate(0, 20, -38);
+  const legL = new THREE.BoxGeometry(3, 7, 3);
+  legL.translate(-8, -3.5, 8);
+  const legR = new THREE.BoxGeometry(3, 7, 3);
+  legR.translate(8, -3.5, 8);
+  const legL2 = new THREE.BoxGeometry(3, 7, 3);
+  legL2.translate(-8, -3.5, -18);
+  const legR2 = new THREE.BoxGeometry(3, 7, 3);
+  legR2.translate(8, -3.5, -18);
+  const wheelGeo = new THREE.CylinderGeometry(6, 6, 3, 10);
   wheelGeo.rotateZ(Math.PI / 2);
-  const wheelPositions = [[-8, -7, 8], [8, -7, 8], [-8, -7, -18], [8, -7, -18]];
+  const wheelPositions = [[-8, -6, 8], [8, -6, 8], [-8, -6, -18], [8, -6, -18]];
   const wheelGeos = wheelPositions.map(([x, y, z]) => {
     const g = wheelGeo.clone();
     g.translate(x, y, z);
@@ -549,10 +621,15 @@ export function buildScene(world) {
   const planeBody = mergeParts([
     { geo: fuselageGeo, color: PALETTE.planeCream },
     { geo: stripeGeo, color: PALETTE.planeOrange },
-    { geo: canopyGeo, color: PALETTE.canopyDark },
+    { geo: canopyGeo, color: 0x0e1a2c },
     { geo: wingGeo, color: PALETTE.planeOrange },
-    { geo: tailGeo, color: PALETTE.planeOrange },
-    { geo: finGeo, color: PALETTE.planeOrange },
+    { geo: tipLGeo, color: PALETTE.planeCream },
+    { geo: tipRGeo, color: PALETTE.planeCream },
+    { geo: tailCGeo, color: PALETTE.planeCream },
+    { geo: tailLGeo, color: PALETTE.planeOrange },
+    { geo: tailRGeo, color: PALETTE.planeOrange },
+    { geo: finGeo, color: PALETTE.planeCream },
+    { geo: finStripeGeo, color: PALETTE.planeOrange },
     { geo: legL, color: PALETTE.gearDark },
     { geo: legR, color: PALETTE.gearDark },
     { geo: legL2, color: PALETTE.gearDark },
@@ -561,23 +638,26 @@ export function buildScene(world) {
   ], { roughness: 0.55 });
   planeBody.castShadow = true;
   plane.add(planeBody);
-  // Prop blur disc — translucent, opacity grows with throttle (set in
-  // updateScene); single pass so it stays one call.
+  // Prop blur disc — M9: radial-gradient CanvasTexture (faint hub,
+  // bright rim) so the spinning disc reads instead of a flat grey circle;
+  // opacity grows with throttle (set in updateScene); single pass so it
+  // stays one call.
   const prop = new THREE.Mesh(
     new THREE.CircleGeometry(26, 24),
     new THREE.MeshBasicMaterial({
-      color: 0xdddddd, transparent: true, opacity: 0.25,
+      map: propTexture(), color: 0xffffff, transparent: true, opacity: 0.3,
       side: THREE.DoubleSide, forceSinglePass: true, depthWrite: false,
     }),
   );
   prop.position.set(0, 0, 50);
   plane.add(prop);
-  // Nav lights — one merged unlit mesh (green left, red right, white tail).
-  const navLGeo = new THREE.SphereGeometry(3, 8, 6);
+  // Nav lights — one merged unlit mesh (green left, red right, white
+  // tail). M9: radius 3 -> 5 so they read at chase distance.
+  const navLGeo = new THREE.SphereGeometry(5, 8, 6);
   navLGeo.translate(-60, 0, 0);
-  const navRGeo = new THREE.SphereGeometry(3, 8, 6);
+  const navRGeo = new THREE.SphereGeometry(5, 8, 6);
   navRGeo.translate(60, 0, 0);
-  const navTGeo = new THREE.SphereGeometry(3, 8, 6);
+  const navTGeo = new THREE.SphereGeometry(5, 8, 6);
   navTGeo.translate(0, 2, -44);
   const navLights = mergeParts([
     { geo: navLGeo, color: 0x00ff66 },
@@ -631,10 +711,11 @@ export function updateScene(view, world, dt, camOrbit, cockpit = false) {
   view.plane.rotation.x = p.pitch * DEG;
   // Prop blur disc: opacity grows with throttle (a still disc at idle).
   // Fainter in the cockpit — from the pilot's seat it sits right in the
-  // eyeline and would wash out the mountain ahead.
+  // eyeline and would wash out the mountain ahead. M9: higher base so
+  // the radial-gradient disc reads in chase view too.
   view.prop.material.opacity = cockpit
-    ? 0.05 + p.throttle * 0.1
-    : 0.12 + p.throttle * 0.3;
+    ? 0.08 + p.throttle * 0.12
+    : 0.2 + p.throttle * 0.35;
   // Rings spin slowly; collected rings hide.
   for (let i = 0; i < view.ringMeshes.length; i += 1) {
     view.ringMeshes[i].rotation.z += dt * 0.4;
