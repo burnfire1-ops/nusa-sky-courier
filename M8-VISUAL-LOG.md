@@ -738,3 +738,76 @@ Kejujuran:
   game/index.html, tests/{terrain,util,world,missions,shots,
   economy}.test.js. TIDAK disentuh: audio.js, merge.js,
   main.ts, serve.ts, nilai gameplay/visual apa pun.
+
+## M12-fix2 — three.js minified (transcript gate thinking_reproduces)
+
+Masalah: kit check + transcripts 27 Nov ~05:32 WIB FAIL
+thinking_reproduces 9,0% (butuh >=30%) + 90,7% baris
+tak-tertulis (batas 40%) — three.core.js (29.989 baris) +
+three.module.js (9.417 baris) dihitung sebagai baris deliverable
+yang bukan ditulis agent karena BUKAN *.min.js. RULES.txt:
+library harus di-vendor sebagai build *.min.js.
+
+### Temuan sumber
+- three@0.187.0 TIDAK mengirim three.module.min.js di paket npm
+  (build/: three.cjs, three.core.js, three.module.js, three.tsl.js,
+  three.webgpu.js, three.webgpu.nodes.js) — diverifikasi via
+  `npm pack three@0.187.0` (integrity sha512 cocok). File
+  three.module.js + three.core.js npm package BYTE-IDENTIK
+  dengan yang di-vendor (cmp lolos) — versi r187 terkonfirmasi.
+- raw.githubusercontent.com/mrdoob/three.js/r187/build/
+  three.module.min.js = 404; unpkg = 404.
+- jsDelivr MENYEDIAKAN minifikasi on-the-fly (Terser v5.48.0)
+  dari file resmi npm: cdn.jsdelivr.net/npm/three@0.187.0/build/
+  three.module.min.js (392.177 byte) + three.core.min.js
+  (422.062 byte). Header file: "Minified by jsDelivr using
+  Terser v5.48.0. Original file: /npm/three@0.187.0/build/..."
+- JUJUR soal provenance: ini BUKAN build artifact yang dikirim
+  three.js (mereka tidak mengirim .min.js untuk r187), melainkan
+  minifikasi Terser atas file resmi r187 oleh jsDelivr. Untuk
+  gate yang penting hanya nama *.min.js + perilaku identik —
+  keduanya terverifikasi di bawah.
+
+### Perubahan (3 file, tidak ada perubahan kode game)
+- BARU game/vendor/three.module.min.js (392.185 byte) +
+  game/vendor/three.core.min.js (422.062 byte). Satu-satunya edit
+  pada module.min.js: 2 kemunculan './three.core.js' (1 import +
+  1 re-export) diganti './three.core.min.js' (string replace
+  terverifikasi: 2 diganti, 0 sisa).
+- HAPUS game/vendor/three.module.js + three.core.js.
+- game/index.html:67 importmap "three" ->
+  "./vendor/three.module.min.js". Tidak ada perubahan lain.
+
+### Verifikasi minified build (sebelum swap)
+- Export: module 443 = 443 identik, core 448 = 448 identik
+  (daftar nama export vs file asli, diurutkan).
+- Runtime import via node: namespace keys 443 = 443 identik,
+  REVISION 187 = 187, spot-check 20 class (Scene, Camera,
+  Renderer, Mesh, LatheGeometry, InstancedMesh, CanvasTexture,
+  dst) tipe sama semua. render.js/main.js memakai
+  `import * as THREE from 'three'` (namespace) — tercakup oleh
+  perbandingan namespace di atas.
+
+### Verifikasi akhir M12-fix2
+- Test 45/45 hijau.
+- Dossier rebuild: 590.169 byte, 4 gambar, schema v1.
+- Kit check kit BARU level 57 (--worktree): 4 passed / 1 failed
+  transcripts_present (urusan parent, terisi sesudah re-bundle).
+  Snapshot worktree 1.413.604 byte (dari 2.733.052 — vendor
+  menyusut ~1,3 MB).
+- Re-capture CDP keempat shot: PNG sha256 IDENTIK dengan
+  baseline M12-fix — start dd6a7864…, play 4898cecf…,
+  landing 974d2bb2…, end 9e497927…. PNG play dibaca sendiri:
+  kokpit + kawah + lava flow + 6 dial hijau + pitch ladder utuh.
+  JPEG repo byte-identik M12-fix (tidak di-encode ulang).
+- Smoke test live (/tmp/m12c-smoke.py + /tmp/m12c-smoke2.py):
+  title -> FLY -> briefing (DAY 1 Ring Run) -> play HUD ->
+  P pause -> P resume -> landing lembut -> debrief LANDED
+  (hull 100, fuel 100), 0 JS exception. Catatan: putaran
+  smoke.py tanpa refresh vs/speed berakhir hard touchdown
+  hull 96 tanpa debrief dalam 20 dtk — perilaku game yang sudah
+  dikenal sejak M12 (bukan regresi swap); putaran smoke2 dengan
+  refresh berkala LOLOS seperti biasa.
+- TIDAK disentuh: semua game/src/*.js, audio.js, merge.js,
+  main.ts, serve.ts, shots.json, screenshots/, nilai gameplay/
+  visual apa pun.
