@@ -1,0 +1,64 @@
+// Input — keyboard + mouse. (Skills: camera-systems for the orbit, and the
+// thesis §3.4 control map.) Keys are read per frame; the mouse drags the
+// chase-camera orbit. No pointer lock — desktop browser, plain events.
+const keys = new Set();
+let orbit = { yaw: 0, pitch: 0 };
+let dragging = false;
+let lastX = 0;
+let lastY = 0;
+let throttle = 0;
+let paused = false;
+
+export function initInput(canvas) {
+  window.addEventListener('keydown', (e) => {
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
+    keys.add(e.key.toLowerCase());
+    if (e.key.toLowerCase() === 'p' || e.key === 'Escape') paused = !paused;
+  });
+  window.addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
+  window.addEventListener('blur', () => keys.clear());
+  canvas.addEventListener('mousedown', (e) => {
+    dragging = true;
+    lastX = e.clientX;
+    lastY = e.clientY;
+  });
+  window.addEventListener('mouseup', () => { dragging = false; });
+  window.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    orbit.yaw += (e.clientX - lastX) * 0.15;
+    orbit.pitch = Math.max(-6, Math.min(14, orbit.pitch - (e.clientY - lastY) * 0.08));
+    lastX = e.clientX;
+    lastY = e.clientY;
+  });
+}
+
+export function readFlightInput(dt) {
+  const up = keys.has('w') || keys.has('arrowup');
+  const down = keys.has('s') || keys.has('arrowdown');
+  const left = keys.has('a') || keys.has('arrowleft');
+  const right = keys.has('d') || keys.has('arrowright');
+  if (keys.has('shift')) throttle = Math.min(1, throttle + dt * 0.5);
+  if (keys.has('control')) throttle = Math.max(0, throttle - dt * 0.5);
+  if (keys.has(' ')) throttle = 0;
+  return {
+    pitch: up ? -8 : down ? 10 : 0,
+    roll: left ? -1 : right ? 1 : 0,
+    throttle,
+  };
+}
+
+export function getOrbit() {
+  return orbit;
+}
+
+export function isPaused() {
+  return paused;
+}
+
+export function setPaused(value) {
+  paused = value;
+}
+
+export function setThrottle(value) {
+  throttle = value;
+}

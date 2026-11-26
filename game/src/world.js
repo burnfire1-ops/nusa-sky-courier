@@ -4,7 +4,7 @@
 export const STALL_SPEED = 55;
 export const CRUISE_SPEED = 110;
 export const MAX_SPEED = 150;
-export const RUNWAY = { x: 0, z0: 0, z1: 3000, halfWidth: 100 };
+export const RUNWAY = { x: 0, z0: -3000, z1: 0, halfWidth: 100 };
 
 export function mulberry32(seed) {
   let a = seed >>> 0;
@@ -23,7 +23,7 @@ export function createWorld({ seed = 1, mission = 'ring' } = {}) {
   const rand = mulberry32(seed);
   const rings = mission === 'ring'
     ? [
-        { x: 0, y: 600, z: 6000, r: 150, collected: false },
+        { x: 0, y: 1700, z: 3500, r: 150, collected: false },
         { x: 400, y: 900, z: 12000, r: 150, collected: false },
         { x: -300, y: 700, z: 18000, r: 150, collected: false },
       ]
@@ -31,7 +31,7 @@ export function createWorld({ seed = 1, mission = 'ring' } = {}) {
   return {
     seed, mission, time: 0, rand,
     plane: {
-      x: 0, y: 0, z: 0, heading: 0, pitch: 0, roll: 0,
+      x: 0, y: 0, z: -2500, heading: 0, pitch: 0, roll: 0,
       speed: 0, vs: 0, throttle: 0,
       fuel: 100, hull: 100, airborne: false, landed: false, crashed: false,
     },

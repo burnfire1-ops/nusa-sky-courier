@@ -46,7 +46,7 @@ test('precision delivery completes on a gentle landing after the pickup ring', (
   updateMission(run, world);
   assert.equal(run.pickedUp, true);
   world.plane.speed = 70; world.plane.y = 5; world.plane.vs = -5;
-  world.plane.x = 0; world.plane.z = 60;
+  world.plane.x = 0; world.plane.z = -1500;
   for (let i = 0; i < 40 && !world.plane.landed; i += 1) {
     stepWorld(world, 0.1, { throttle: 0.2, pitch: 8, roll: 0 });
     updateMission(run, world);

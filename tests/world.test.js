@@ -88,7 +88,7 @@ test('gusts are deterministic for the same seed', () => {
 test('gentle touchdown on the runway lands the plane', () => {
   const w = fresh();
   w.plane.speed = 70; w.plane.y = 5; w.plane.vs = -5; w.plane.airborne = true;
-  w.plane.x = 0; w.plane.z = 60; // over the runway
+  w.plane.x = 0; w.plane.z = -1500; // over the runway
   // Flare (pitch up) to soften the sink rate, like a real landing.
   for (let i = 0; i < 40 && !w.plane.landed; i += 1) stepWorld(w, 0.1, { throttle: 0.2, pitch: 8, roll: 0 });
   assert.equal(w.plane.landed, true);
@@ -98,7 +98,7 @@ test('gentle touchdown on the runway lands the plane', () => {
 test('hard touchdown damages the hull', () => {
   const w = fresh();
   w.plane.speed = 70; w.plane.y = 5; w.plane.vs = -25; w.plane.airborne = true;
-  w.plane.x = 0; w.plane.z = 60;
+  w.plane.x = 0; w.plane.z = -1500;
   for (let i = 0; i < 20 && w.plane.y > 0; i += 1) stepWorld(w, 0.1, { throttle: 0.2, pitch: 0, roll: 0 });
   assert.ok(w.plane.hull < 100, `hard landing should damage hull, hull=${w.plane.hull}`);
   assert.equal(w.plane.landed, false);
