@@ -8,12 +8,27 @@ let lastX = 0;
 let lastY = 0;
 let throttle = 0;
 let paused = false;
+let cockpit = false;
+
+/** Cockpit view toggle — pure state, no DOM at import time (node-testable). */
+export function isCockpit() {
+  return cockpit;
+}
+
+export function setCockpit(value) {
+  cockpit = !!value;
+}
+
+export function toggleCockpit() {
+  cockpit = !cockpit;
+}
 
 export function initInput(canvas) {
   window.addEventListener('keydown', (e) => {
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
     keys.add(e.key.toLowerCase());
     if (e.key.toLowerCase() === 'p' || e.key === 'Escape') paused = !paused;
+    if (e.key.toLowerCase() === 'c') toggleCockpit();
   });
   window.addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
   window.addEventListener('blur', () => keys.clear());

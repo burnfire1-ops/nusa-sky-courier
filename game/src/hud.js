@@ -78,6 +78,186 @@ function drawRadar(world) {
   ctx.restore();
 }
 
+// ---- Cockpit view: 6 live analog dials + compass tape (canvas) ----
+// (Skill: game-ui-ux — one scaling policy, anchored bottom; game-feel —
+// instruments are the juice for a flight sim, so they stay lit and live.)
+const AMBER = '#ffc233';
+const FACE = '#141026';
+const CARDINALS = ['N', '030', '060', 'E', '120', '150', 'S', '210', '240', 'W', '300', '330'];
+
+function dialFace(ctx, cx, cy, r, label) {
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = FACE;
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = AMBER;
+  ctx.stroke();
+  ctx.fillStyle = AMBER;
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(label, cx, cy + r - 8);
+}
+
+function dialTicks(ctx, cx, cy, r, count, startDeg, sweepDeg) {
+  ctx.strokeStyle = '#f2e3c6';
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i <= count; i += 1) {
+    const a = ((startDeg + (sweepDeg * i) / count) * Math.PI) / 180;
+    const r1 = r - 4, r2 = r - (i % 5 === 0 ? 12 : 8);
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.sin(a) * r1, cy - Math.cos(a) * r1);
+    ctx.lineTo(cx + Math.sin(a) * r2, cy - Math.cos(a) * r2);
+    ctx.stroke();
+  }
+}
+
+function dialNeedle(ctx, cx, cy, r, deg, color = '#ffffff') {
+  const a = (deg * Math.PI) / 180;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + Math.sin(a) * (r - 14), cy - Math.cos(a) * (r - 14));
+  ctx.stroke();
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function dialValue(ctx, cx, cy, text) {
+  ctx.fillStyle = AMBER;
+  ctx.font = 'bold 15px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(text, cx, cy + 22);
+}
+
+export function updateCockpit(world, econ, missionText) {
+  const canvas = el('cockpit-dials');
+  if (canvas) drawDials(canvas.getContext('2d'), canvas.width, canvas.height, world, econ, missionText);
+  const tape = el('compass-tape-canvas');
+  if (tape) drawCompassTape(tape.getContext('2d'), tape.width, tape.height, world);
+}
+
+function drawDials(ctx, W, H, world, econ, missionText) {
+  const p = world.plane;
+  ctx.clearRect(0, 0, W, H);
+  // Mission line across the top of the panel.
+  ctx.fillStyle = AMBER;
+  ctx.font = 'bold 13px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(missionText, W / 2, 18);
+  const cy = 118, r = 58;
+  const xs = [80, 240, 400, 560, 720, 880];
+  // 1. Airspeed (0–200 kts, needle sweeps -120°..+120°).
+  dialFace(ctx, xs[0], cy, r, 'AIRSPEED');
+  dialTicks(ctx, xs[0], cy, r, 20, -120, 240);
+  dialNeedle(ctx, xs[0], cy, r, -120 + (Math.min(p.speed, 200) / 200) * 240);
+  dialValue(ctx, xs[0], cy, `${Math.round(p.speed)}`);
+  // 2. Attitude — artificial horizon, rotated by roll, shifted by pitch.
+  dialFace(ctx, xs[1], cy, r, 'ATTITUDE');
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(xs[1], cy, r - 3, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.translate(xs[1], cy);
+  ctx.rotate((-p.roll * Math.PI) / 180);
+  ctx.translate(0, (p.pitch / 20) * r);
+  ctx.fillStyle = '#3a6a9a';
+  ctx.fillRect(-r, -r, r * 2, r);
+  ctx.fillStyle = '#8a5a30';
+  ctx.fillRect(-r, 0, r * 2, r);
+  ctx.strokeStyle = '#f2e3c6';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-r, 0);
+  ctx.lineTo(r, 0);
+  ctx.stroke();
+  ctx.restore();
+  ctx.strokeStyle = AMBER;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(xs[1] - 18, cy);
+  ctx.lineTo(xs[1] + 18, cy);
+  ctx.stroke();
+  // 3. Altitude (0–5000 ft).
+  dialFace(ctx, xs[2], cy, r, 'ALTITUDE');
+  dialTicks(ctx, xs[2], cy, r, 20, -120, 240);
+  dialNeedle(ctx, xs[2], cy, r, -120 + (Math.min(p.y, 5000) / 5000) * 240);
+  dialValue(ctx, xs[2], cy, `${Math.round(p.y)}`);
+  // 4. VSI (-2000..+2000 ft/min; vs is ft/s).
+  dialFace(ctx, xs[3], cy, r, 'VSI');
+  dialTicks(ctx, xs[3], cy, r, 20, -120, 240);
+  const vs = Math.max(-2000, Math.min(2000, p.vs * 60));
+  dialNeedle(ctx, xs[3], cy, r, (vs / 2000) * 90);
+  dialValue(ctx, xs[3], cy, vs >= 0 ? `+${Math.round(vs)}` : `${Math.round(vs)}`);
+  // 5. Heading — compass rose with a pointer at current heading.
+  dialFace(ctx, xs[4], cy, r, 'HEADING');
+  ctx.save();
+  ctx.translate(xs[4], cy);
+  ctx.rotate((-p.heading * Math.PI) / 180);
+  ctx.fillStyle = '#f2e3c6';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'center';
+  const dirs = ['N', 'E', 'S', 'W'];
+  for (let i = 0; i < 4; i += 1) {
+    const a = (i * Math.PI) / 2;
+    ctx.fillText(dirs[i], Math.sin(a) * (r - 16), -Math.cos(a) * (r - 16) + 4);
+  }
+  ctx.restore();
+  dialNeedle(ctx, xs[4], cy, r, 0, AMBER);
+  dialValue(ctx, xs[4], cy, `${String(Math.round(p.heading)).padStart(3, '0')}°`);
+  // 6. Fuel (0–100%).
+  dialFace(ctx, xs[5], cy, r, 'FUEL');
+  dialTicks(ctx, xs[5], cy, r, 10, -120, 240);
+  dialNeedle(ctx, xs[5], cy, r, -120 + (p.fuel / 100) * 240, p.fuel < 20 ? '#ff5555' : '#ffffff');
+  dialValue(ctx, xs[5], cy, `${Math.round(p.fuel)}%`);
+}
+
+function drawCompassTape(ctx, W, H, world) {
+  const hdg = world.plane.heading;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(16, 10, 30, 0.85)';
+  ctx.fillRect(0, 0, W, H);
+  const pxPerDeg = W / 120;
+  const center = W / 2;
+  ctx.font = 'bold 12px sans-serif';
+  ctx.textAlign = 'center';
+  for (let d = -60; d <= 60; d += 5) {
+    const h = Math.round(((hdg + d) % 360 + 360) % 360);
+    const x = center + d * pxPerDeg;
+    const isCard = h % 30 === 0;
+    ctx.strokeStyle = isCard ? AMBER : '#8888aa';
+    ctx.lineWidth = isCard ? 2 : 1;
+    ctx.beginPath();
+    ctx.moveTo(x, H - 4);
+    ctx.lineTo(x, H - (isCard ? 13 : 8));
+    ctx.stroke();
+    if (isCard) {
+      ctx.fillStyle = AMBER;
+      ctx.fillText(CARDINALS[Math.round(h / 30) % 12], x, 13);
+    }
+  }
+  // Center caret + digital heading in its own box (never collides with a
+  // cardinal label — the box covers the centre ticks).
+  ctx.fillStyle = AMBER;
+  ctx.beginPath();
+  ctx.moveTo(center - 7, 0);
+  ctx.lineTo(center + 7, 0);
+  ctx.lineTo(center, 8);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = 'rgba(16, 10, 30, 0.95)';
+  ctx.fillRect(center - 30, H - 20, 60, 16);
+  ctx.strokeStyle = AMBER;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(center - 30, H - 20, 60, 16);
+  ctx.fillStyle = AMBER;
+  ctx.font = 'bold 13px monospace';
+  ctx.fillText(`${String(Math.round(hdg)).padStart(3, '0')}°`, center, H - 8);
+}
+
 let toastTimer = 0;
 export function showToast(message, ms = 2500) {
   const node = el('toast');

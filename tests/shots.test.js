@@ -25,3 +25,10 @@ test('end shot shares the clean final-approach staging', () => {
   assert.equal(world.plane.hull, 100);
   assert.ok(world.plane.z >= -3000 && world.plane.z <= -2000, `z=${world.plane.z}`);
 });
+
+test('play shot is staged for cockpit view, other shots are chase', () => {
+  assert.equal(stageShot('play', 1).cockpit, true);
+  assert.equal(stageShot('start', 1).cockpit, false);
+  assert.equal(stageShot('landing', 1).cockpit, false);
+  assert.equal(stageShot('end', 1).cockpit, false);
+});

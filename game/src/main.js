@@ -6,9 +6,9 @@ import { createWorld, stepWorld } from './world.js';
 import { createEconomy, addReward, applyLanding } from './economy.js';
 import { MISSIONS, createMissionRun, updateMission, missionProgress } from './missions.js';
 import { createRenderer, buildScene, updateScene, perfStats, onResize } from './render.js';
-import { updateHud, showToast } from './hud.js';
+import { updateHud, updateCockpit, showToast } from './hud.js';
 import { ensureAudio, updateAudio, playRing, playLand, playCrash } from './audio.js';
-import { initInput, readFlightInput, getOrbit, isPaused, setPaused, setThrottle } from './input.js';
+import { initInput, readFlightInput, getOrbit, isPaused, setPaused, setThrottle, isCockpit, setCockpit } from './input.js';
 import { stageShot } from './shots.js';
 
 const params = new URLSearchParams(window.location.search);
@@ -151,6 +151,9 @@ if (shotName) {
   const staged = stageShot(shotName, seed);
   world = staged.world;
   view = buildScene(world);
+  // Cockpit view comes from the shot staging (play = cockpit in M8).
+  setCockpit(!!staged.cockpit);
+  document.body.classList.toggle('cockpit', isCockpit());
   if (shotName === 'end') {
     run = createMissionRun(MISSIONS[0], world);
     run.status = 'complete';
@@ -167,9 +170,11 @@ if (shotName) {
   pre.textContent = 'PENDING';
   document.body.appendChild(pre);
   renderer.setAnimationLoop(() => {
-    updateScene(view, world, 1 / 30, { yaw: 0, pitch: 0 });
+    updateScene(view, world, 1 / 30, { yaw: 0, pitch: 0 }, isCockpit());
     if (staged.screen === 'play') {
-      updateHud(world, econ, shotName === 'landing' ? 'Final approach — flare before touchdown' : `Cincin ${world.collected}/${world.rings.length}`);
+      const missionText = shotName === 'landing' ? 'Final approach — flare before touchdown' : `Cincin ${world.collected}/${world.rings.length}`;
+      if (isCockpit()) updateCockpit(world, econ, missionText);
+      else updateHud(world, econ, missionText);
     }
     renderer.render(view.scene, view.camera);
     framesRendered += 1;
@@ -199,16 +204,21 @@ if (shotName) {
         showToast(`Cincin ${world.collected}/${world.rings.length} — bagus!`);
       }
       updateAudio(world.plane);
-      if (run) updateHud(world, econ, missionProgress(run, world));
+      if (run) {
+        const missionText = missionProgress(run, world);
+        if (isCockpit()) updateCockpit(world, econ, missionText);
+        else updateHud(world, econ, missionText);
+      }
       if (world.plane.landed || world.plane.crashed) endDay(world.plane.landed);
       else if (run && run.status === 'failed') endDay(false);
     }
+    document.body.classList.toggle('cockpit', screen === 'play' && isCockpit());
     if (screen === 'pause' || isPaused()) {
       if (screen === 'play' && isPaused()) showScreen('pause');
     } else if (screen === 'pause' && !isPaused()) {
       showScreen('play');
     }
-    updateScene(view, world, dt, getOrbit());
+    updateScene(view, world, dt, getOrbit(), isCockpit());
     renderer.render(view.scene, view.camera);
   });
 }

@@ -7,7 +7,7 @@ import { createWorld, stepWorld } from './world.js';
 
 const SAMPLE = 1 / 30;
 const START_SECONDS = 5;
-const PLAY_SECONDS = 40;
+const PLAY_SECONDS = 18;
 const LANDING_SECONDS = 40;
 
 function clamp(v, lo, hi) {
@@ -52,7 +52,7 @@ export function stageShot(name, seed = 1) {
       const t = nextRingTarget(world);
       stepWorld(world, SAMPLE, t ? autopilotTo(world, t.x, t.y, t.z) : { throttle: 0.7, pitch: 0, roll: 0 });
     }
-    return { world, screen: 'title' };
+    return { world, screen: 'title', cockpit: false };
   }
   if (name === 'play') {
     world.plane.speed = 100;
@@ -64,7 +64,7 @@ export function stageShot(name, seed = 1) {
       if (!t) break;
       stepWorld(world, SAMPLE, autopilotTo(world, t.x, t.y, t.z));
     }
-    return { world, screen: 'play' };
+    return { world, screen: 'play', cockpit: true };
   }
   // Landing + end: short final approach, frozen on final over the runway
   // threshold — plane aligned with the strip, ~200 ft up, runway ahead.
@@ -81,5 +81,5 @@ export function stageShot(name, seed = 1) {
     // Freeze on final: just past the threshold, still well above ground.
     if (world.plane.z >= -2900 || world.plane.y <= 120 || world.plane.landed) break;
   }
-  return { world, screen: name === 'end' ? 'debrief' : 'play' };
+  return { world, screen: name === 'end' ? 'debrief' : 'play', cockpit: false };
 }

@@ -25,6 +25,12 @@
   #hud .bottom-center b { color: #ffc233; }
   #hud .warn { color: #ff5a3c; font-weight: 700; }
   #toast { position: fixed; top: 76px; left: 50%; transform: translateX(-50%); background: rgba(16, 10, 30, 0.85); border: 1px solid #ffc233; border-radius: 8px; padding: 8px 18px; font-size: 15px; z-index: 6; }
+  /* Cockpit view: glareshield panel with live analog dials + compass tape.
+     Shown only when the body has class "cockpit" (set by main.js). */
+  #cockpit-panel { display: none; position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); z-index: 5; background: linear-gradient(to top, rgba(16, 10, 30, 0.95), rgba(16, 10, 30, 0.6)); border-top: 1px solid rgba(255, 194, 51, 0.5); border-radius: 12px 12px 0 0; padding: 2px 10px 8px; }
+  #compass-tape { display: none; position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 5; }
+  body.cockpit #cockpit-panel, body.cockpit #compass-tape { display: block; }
+  body.cockpit #hud .top-left, body.cockpit #hud .top-right, body.cockpit #hud .bottom-center { display: none; }
 </style>
 <script type="importmap">
 { "imports": { "three": "./vendor/three.module.js" } }
@@ -42,12 +48,14 @@
   <div class="bottom-center" id="hud-mission">—</div>
 </div>
 <div id="toast" class="hidden"></div>
+<div id="compass-tape"><canvas id="compass-tape-canvas" width="1280" height="40"></canvas></div>
+<div id="cockpit-panel"><canvas id="cockpit-dials" width="960" height="210"></canvas></div>
 
 <div id="screen-title" class="overlay">
   <div class="panel">
     <h1>NUSA SKY COURIER</h1>
     <p class="sub">Volcanic archipelago &middot; dusk &middot; one small plane, three islands, every parcel on time</p>
-    <p>W A S D or arrows to fly &middot; mouse steers the camera &middot; Shift throttle up, Ctrl throttle down &middot; Space brake &middot; P pause</p>
+    <p>W A S D or arrows to fly &middot; mouse steers the camera &middot; Shift throttle up, Ctrl throttle down &middot; Space brake &middot; P pause &middot; C cockpit view</p>
     <p class="sub">Best courier rank: <span id="title-best">PEMULA</span> &middot; press Enter to fly</p>
     <button id="btn-fly">FLY</button>
   </div>
