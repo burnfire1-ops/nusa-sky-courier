@@ -237,8 +237,8 @@ function exhaustTexture() {
   canvas.height = 128;
   const ctx = canvas.getContext('2d');
   const g = ctx.createRadialGradient(64, 64, 4, 64, 64, 62);
-  g.addColorStop(0, 'rgba(255,200,110,0.95)');
-  g.addColorStop(0.4, 'rgba(255,110,30,0.55)');
+  g.addColorStop(0, 'rgba(255,195,100,0.9)');
+  g.addColorStop(0.4, 'rgba(255,110,30,0.5)');
   g.addColorStop(1, 'rgba(255,80,10,0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 128, 128);
@@ -827,26 +827,39 @@ export function buildScene(world) {
   ], { roughness: 0.7 });
   planeBody.castShadow = true;
   plane.add(planeBody);
-  // Twin-jet exhaust glow — M10.5: a stealth jet has no propeller. One
-  // radial-gradient disc at the tail (facing backward), opacity grows
-  // with throttle (set in updateScene); same single mesh, same 1 call.
-  const exhaust = new THREE.Mesh(
-    new THREE.CircleGeometry(15, 20),
-    new THREE.MeshBasicMaterial({
-      map: exhaustTexture(), color: 0xffffff, transparent: true, opacity: 0.5,
-      side: THREE.DoubleSide, forceSinglePass: true, depthWrite: false,
-    }),
-  );
-  exhaust.position.set(0, 0, -50);
+  // Twin-jet exhaust glow — M10.5/M10-fix: a stealth jet has no
+  // propeller. Two small radial-gradient discs, one directly behind
+  // each dark nozzle (x ±7, r 7.5), sharing one AdditiveBlending
+  // material so the glow adds light instead of painting a solid ball
+  // (M10: one r15 NormalBlending disc read as a white ping-pong ball
+  // in the tail centre). Opacity grows with throttle (set in
+  // updateScene via `exhaust`, whose material is shared by both
+  // discs). Cost: +1 draw call (2 meshes); budget has margin
+  // (landing 27/30 before this change).
+  const exhaustMat = new THREE.MeshBasicMaterial({
+    map: exhaustTexture(), color: 0xffffff, transparent: true, opacity: 0.5,
+    blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    forceSinglePass: true, depthWrite: false,
+  });
+  const exhaustGeo = new THREE.CircleGeometry(7.5, 16);
+  const exhaust = new THREE.Mesh(exhaustGeo, exhaustMat);
+  exhaust.position.set(7, 0, -50);
   exhaust.rotation.y = Math.PI;
   plane.add(exhaust);
+  const exhaustL = new THREE.Mesh(exhaustGeo, exhaustMat);
+  exhaustL.position.set(-7, 0, -50);
+  exhaustL.rotation.y = Math.PI;
+  plane.add(exhaustL);
   // Nav lights — one merged unlit mesh (green left, red right, white
-  // tail). M9: radius 3 -> 5 so they read at chase distance.
+  // tail). M9: radius 3 -> 5 so they read at chase distance. M10-fix:
+  // the tail light stays r2.5 — at r5 its unlit white sphere sat dead
+  // centre between the nozzles and read as a white ball, which the
+  // glow-disc split alone could not fix.
   const navLGeo = new THREE.SphereGeometry(5, 8, 6);
   navLGeo.translate(-60, 0, -7);
   const navRGeo = new THREE.SphereGeometry(5, 8, 6);
   navRGeo.translate(60, 0, -7);
-  const navTGeo = new THREE.SphereGeometry(5, 8, 6);
+  const navTGeo = new THREE.SphereGeometry(2.5, 8, 6);
   navTGeo.translate(0, 2, -44);
   const navLights = mergeParts([
     { geo: navLGeo, color: 0x00ff66 },
@@ -934,7 +947,10 @@ export function updateScene(view, world, dt, camOrbit, cockpit = false) {
   // Exhaust glow: brighter with throttle (idle glow at rest, hot plume
   // at full power). M10.5: the old prop disc is gone — the glow sits at
   // the tail, behind the plane, so the cockpit view is unaffected.
-  view.exhaust.material.opacity = 0.25 + p.throttle * 0.35;
+  // M10-fix: AdditiveBlending twin discs share one material, so one
+  // opacity write drives both; range capped at 0.5 so the glow never
+  // reads as a solid ball again.
+  view.exhaust.material.opacity = 0.2 + p.throttle * 0.3;
   // Rings spin slowly; collected rings hide.
   for (let i = 0; i < view.ringMeshes.length; i += 1) {
     view.ringMeshes[i].rotation.z += dt * 0.4;

@@ -371,3 +371,51 @@ game-feel — dikutip di header render.js/hud.js):
   (sisa M8-fix) — terbaca sebagai struktur tanah; (2) zona tier
   volcano paling samar dari jarak landing; (3) buritan fuselage agak
   blob + glow ekor masih terang (lihat M10.5).
+
+## M10-fix — DONE 27 Nov ~03:0x WIB (review 2-of-3 parent + Gemini
+## AGREE WITH FIXES; Rank 1 exhaust glow, Rank 2 ILS verifikasi)
+
+### Fix 1 — Exhaust glow "bola ping-pong putih" (render.js): LOLOS,
+### 2 percobaan, root cause bukan cuma disc-nya
+- Percobaan 1 (tidak cukup): satu disc r15 NormalBlending → DUA disc
+  kecil r7.5 tepat di belakang nozzle kembar (±7, z −50), material
+  AdditiveBlending (depthWrite false, transparent, opacity 0.2+thr×0.3,
+  maks 0.5), tekstur core dilunakkan (0.95→0.9). Hasil: bola mengecil
+  tapi TIDAK hilang — zoom 4x ke ekor membuktikan penyebab utamanya
+  BUKAN glow disc, melainkan lampu nav ekor putih (SphereGeometry r5
+  unlit di (0,2,−44), tepat di tengah buritan, celah di antara kedua
+  disc) yang bersinar menembus disc.
+- Percobaan 2 (dipakai): lampu nav ekor r5 → r2.5 (komentar di kode
+  menjelaskan alasannya). Hasil: bola putih HILANG — yang tersisa titik
+  putih kecil di tengah buritan yang terbaca sebagai tail position
+  light (realistis), diapit dua nozzle gelap + halo oranye samar.
+  Shot 1 & 3: V-tail + livery tetap terbaca, HUD shot 3 utuh
+  (ALT 241 / SPD 91 / HDG 357 / HULL 100%).
+- Biaya: +1 draw call (2 mesh glow). Stats capture final: start 26
+  calls / 12.992 tris; landing 28 / 13.092 — semua <30 calls, <40k
+  tris. Jujur: halo oranye kini samar di throttle staging (59%) —
+  bukan afterburner menyala-nyala, tapi wajar untuk jet siluman di
+  cruise; yang penting disonansi "bola putih" sudah hilang.
+
+### Fix 2 — ILS "H" coklat pojok kiri-bawah shot 3/4: DIVERIFIKASI,
+### TIDAK DIUBAH
+- Cek kode + capture baru: ILS itu world-space murni (render.js:
+  pad 40×6×40 di y 0–6 + mast 120 + bar1/bar2, posisi (140,−2800),
+  alas di y=0 menyambung terrain). Di frame shot 3, mast berlanjut
+  utuh sampai tepi bawah frame tanpa celah melayang — terbaca sebagai
+  antena tanah yang alasnya di luar frame bawah, bukan glitch.
+  Sesuai instruksi: tidak ada perubahan. Shot 4 tidak di-capture
+  ulang (tidak ada yang berubah di sana).
+
+### Verifikasi akhir M10-fix
+- Re-capture CDP shot 1 + 3 (angka deterministik, 2 run identik di
+  M10; capture fix 26/28 calls): JPEG q88 1-start 85 KiB,
+  3-landing 107 KiB (1280×633, ≤256 KiB). Dossier rebuild: 575.981
+  byte, 4 gambar, schema v1. Test 31/31 hijau. Kit check: 4 passed /
+  1 failed transcripts_present (urusan parent).
+- Commit + push: `M10-fix` (local == remote, main). Server serve.ts
+  dimatikan.
+- TIDAK disentuh: world.js, economy.js, missions.js, ISLANDS, staging
+  shot, kamera, flight model, nilai HUD, logika HUD, panel title/
+  debrief, pencahayaan global, smoothing fuselage, kontras tier
+  volcano (Rank 3 Gemini: dilewati).
