@@ -218,9 +218,21 @@ if (shotName) {
   // bar2 by ~2 px (no-op) and pitch can't clear it, but zoom+40 lifts
   // bar2 ~35 px into frame (mast + both bars visible); the ILS pad stays
   // below frame, so the mast exits the bottom edge like a grounded pole.
-  const shotOrbit = shotName === 'landing'
-    ? { yaw: 2, pitch: -80, zoom: 40 }
-    : shotName === 'end' ? { yaw: 0, pitch: 0, zoom: 40 } : { yaw: 0, pitch: 0 };
+  // V2-D: the play shot gets the landing recipe's yaw + zoom — dead-astern
+  // (yaw 0) read the stealth jet as a dark cross/blob against the lava
+  // slope, and the 190 ft chase put the plane huge with the ring small.
+  // Pitch stays 0: pitch -80 (tried first) levels the camera so the ring
+  // falls INSIDE the plane's silhouette and is occluded by the fuselage —
+  // with the camera 70 ft above, the ring sits clear above the plane.
+  // Yaw 2° (tried second) was too subtle at 230 ft to break the symmetry;
+  // yaw 10° shows a real three-quarter rear profile (fuselage length +
+  // swept wing + V-tail from the side) while the ring stays centred —
+  // the lookAt ignores yaw, so the target does not drift.
+  const shotOrbit = shotName === 'play'
+    ? { yaw: 10, pitch: 0, zoom: 40 }
+    : shotName === 'landing'
+      ? { yaw: 2, pitch: -80, zoom: 40 }
+      : shotName === 'end' ? { yaw: 0, pitch: 0, zoom: 40 } : { yaw: 0, pitch: 0 };
   if (shotName === 'end') {
     run = createMissionRun(MISSIONS[0], world);
     run.status = 'complete';
