@@ -56,7 +56,7 @@ function loadBest() {
 function saveBest() {
   try {
     const best = loadBest();
-    best.rank = econ.rank;
+    best.bestRank = econ.bestRank;
     best.kr = Math.max(best.kr || 0, econ.kr);
     best.upgrades = [...econ.upgrades];
     localStorage.setItem('nusa-best', JSON.stringify(best));
@@ -138,19 +138,19 @@ function endDay(landed) {
     });
     title.textContent = 'DELIVERY COMPLETE';
     body.textContent = `${run.mission.title} — selesai! +${run.mission.reward} KR misi, +${landing.points} KR landing.`;
-    rankLine.textContent = `Landing Rank ${landing.rank} · Courier ${econ.rank} · Total KR ${econ.kr}`;
+    rankLine.textContent = `Landing Rank ${landing.rank} · Best Rank ${econ.bestRank} · Total KR ${econ.kr}`;
     playLand();
   } else if (world.plane.crashed) {
     title.textContent = 'CRASHED';
     body.textContent = 'Pesawat jatuh. Hull hancur — hari ini tidak ada bayaran.';
-    rankLine.textContent = `Courier ${econ.rank} · Total KR ${econ.kr}`;
+    rankLine.textContent = `Best Rank ${econ.bestRank || '—'} · Total KR ${econ.kr}`;
     playCrash();
   } else {
     title.textContent = landed ? 'LANDED' : 'DAY OVER';
     body.textContent = landed
       ? 'Mendarat dengan selamat, tapi misi belum selesai.'
       : 'Misi gagal — bahan bakar habis atau waktu habis.';
-    rankLine.textContent = `Courier ${econ.rank} · Total KR ${econ.kr}`;
+    rankLine.textContent = `Best Rank ${econ.bestRank || '—'} · Total KR ${econ.kr}`;
   }
   // M12-fix S1: save AFTER the reward/landing points land, so the best
   // rank/KR on the title screen is current, not one day behind.
@@ -168,7 +168,7 @@ document.getElementById('btn-next').addEventListener('click', () => {
   if (day >= 3) {
     day = 1;
     const best = loadBest();
-    document.getElementById('title-best').textContent = best.rank || 'PEMULA';
+    document.getElementById('title-best').textContent = best.bestRank || '—';
     showScreen('title');
   } else {
     day += 1;
@@ -192,7 +192,7 @@ window.addEventListener('resize', () => {
 });
 
 const best = loadBest();
-document.getElementById('title-best').textContent = best.rank || 'PEMULA';
+document.getElementById('title-best').textContent = best.bestRank || '—';
 // V2-B: owned upgrades persist across sessions (KR itself is per
 // campaign and starts at 0 — only the unlocks carry over).
 econ.upgrades = Array.isArray(best.upgrades) ? [...best.upgrades] : [];

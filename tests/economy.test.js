@@ -2,12 +2,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createEconomy, addReward, landingRank, applyLanding, RANKS, buyUpgrade } from '../game/src/economy.js';
+import { createEconomy, addReward, landingRank, applyLanding, buyUpgrade } from '../game/src/economy.js';
 
-test('fresh economy starts at zero KR, rank PEMULA', () => {
+test('fresh economy starts at zero KR, no best rank yet', () => {
   const e = createEconomy();
   assert.equal(e.kr, 0);
-  assert.equal(e.rank, 'PEMULA');
+  assert.equal(e.bestRank, null);
+  assert.deepEqual(e.upgrades, []);
 });
 
 test('landing rank S needs a gentle slow landing with all rings and full hull', () => {
@@ -17,14 +18,21 @@ test('landing rank S needs a gentle slow landing with all rings and full hull', 
   assert.equal(landingRank({ vs: -8, speed: 89, rings: 0, ringsTotal: 3, hull: 60 }).rank, 'C');
 });
 
-test('rank points accumulate and promote the courier tier', () => {
+// V2-C (cut 3): one Rank per landing, no reputation ladder — bestRank
+// keeps the best landing Rank (S > A > B > C) and never drops.
+test('bestRank keeps the best landing rank and KR accumulates', () => {
   const e = createEconomy();
   applyLanding(e, { vs: -2, speed: 70, rings: 3, ringsTotal: 3, hull: 100 });
-  assert.ok(e.rankPoints >= 100);
-  assert.equal(RANKS[0], 'PEMULA');
-  assert.equal(RANKS[RANKS.length - 1], 'LEGENDA');
-  for (let i = 0; i < 6; i += 1) applyLanding(e, { vs: -2, speed: 70, rings: 3, ringsTotal: 3, hull: 100 });
-  assert.equal(e.rank, 'LEGENDA');
+  assert.equal(e.bestRank, 'S');
+  assert.equal(e.kr, 100);
+  applyLanding(e, { vs: -8, speed: 89, rings: 0, ringsTotal: 3, hull: 60 });
+  assert.equal(e.bestRank, 'S', 'a later C landing must not lower the best rank');
+  assert.equal(e.kr, 120);
+  const e2 = createEconomy();
+  applyLanding(e2, { vs: -7, speed: 85, rings: 1, ringsTotal: 3, hull: 85 });
+  assert.equal(e2.bestRank, 'B');
+  applyLanding(e2, { vs: -6, speed: 70, rings: 3, ringsTotal: 3, hull: 100 });
+  assert.equal(e2.bestRank, 'A');
 });
 
 // V2-B (cut 3 — hangar shop): 3 upgrades, bought with KR, effects are

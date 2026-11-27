@@ -6,11 +6,13 @@ import { LANDING_POINTS, UPGRADES } from './config.js';
 // alive by its own tests. Deleted together with those tests.
 // V2-B: the shop is back, WITH a UI — the briefing overlay carries the
 // hangar panel (main.js renderShop), so KR is spendable in production.
-export const RANKS = ['PEMULA', 'PERAK', 'EMAS', 'LEGENDA'];
-export const RANK_POINTS = { PEMULA: 0, PERAK: 100, EMAS: 250, LEGENDA: 500 };
+// V2-C (cut 3): one Rank per landing, no reputation ladder. The old
+// RANKS/RANK_POINTS tier ladder (PEMULA → LEGENDA) is deleted — the
+// debrief and title show the best landing Rank (S/A/B/C) instead.
+const RANK_ORDER = ['C', 'B', 'A', 'S'];
 
 export function createEconomy() {
-  return { kr: 0, rank: 'PEMULA', rankPoints: 0, upgrades: [] };
+  return { kr: 0, bestRank: null, upgrades: [] };
 }
 
 export function addReward(econ, kr) {
@@ -45,12 +47,9 @@ export function landingRank({ vs, speed, rings, ringsTotal, hull }) {
 
 export function applyLanding(econ, landing) {
   const { rank, points } = landingRank(landing);
-  econ.rankPoints += points;
   econ.kr += points;
-  let tier = 'PEMULA';
-  for (const name of RANKS) {
-    if (econ.rankPoints >= RANK_POINTS[name]) tier = name;
+  if (econ.bestRank === null || RANK_ORDER.indexOf(rank) > RANK_ORDER.indexOf(econ.bestRank)) {
+    econ.bestRank = rank;
   }
-  econ.rank = tier;
   return { rank, points };
 }
