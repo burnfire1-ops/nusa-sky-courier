@@ -60,7 +60,7 @@ export function stageShot(name, seed = 1) {
       if (!t) break;
       stepWorld(world, SHOTS.sample, autopilotTo(world, t.x, t.y, t.z));
     }
-    return { world, screen: 'play', cockpit: true };
+    return { world, screen: 'play', cockpit: false };
   }
   // Landing + end: short final approach, frozen on final over the runway
   // threshold — plane aligned with the strip, ~200 ft up, runway ahead.

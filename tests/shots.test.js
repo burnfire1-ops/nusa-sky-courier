@@ -27,8 +27,11 @@ test('end shot shares the clean final-approach staging', () => {
   assert.ok(world.plane.z >= -3000 && world.plane.z <= -2000, `z=${world.plane.z}`);
 });
 
-test('play shot is staged for cockpit view, other shots are chase', () => {
-  assert.equal(stageShot('play', 1).cockpit, true);
+// V2-A (cut 4 — chase default): the play shot must show the aircraft in
+// frame (judge criterion 1), so it is staged chase, not cockpit. The
+// cockpit view stays available in live play via the C toggle (input.js).
+test('play shot is staged for chase view, other shots are chase too', () => {
+  assert.equal(stageShot('play', 1).cockpit, false);
   assert.equal(stageShot('start', 1).cockpit, false);
   assert.equal(stageShot('landing', 1).cockpit, false);
   assert.equal(stageShot('end', 1).cockpit, false);
