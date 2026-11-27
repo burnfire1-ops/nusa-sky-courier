@@ -13,6 +13,7 @@ import { mergeGeometries } from './merge.js';
 // render.js keeps only the THREE-facing wrappers. DEG/clamp live in util.js.
 import { hash2, smoothstep, volcanoAngleMod, lavaFlowMask, tierColor, islandProfileData, islandSurfaceY } from './terrain.js';
 import { DEG } from './util.js';
+import { AIRCRAFT, taperPositions, gearDown, fuselageRadiusAt } from './aircraft.js';
 
 export function createRenderer(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -669,11 +670,16 @@ export function buildScene(world) {
     return mesh;
   });
 
-  // Aircraft — M10.5 STEALTH REDESIGN (refs: F-22 Raptor twin canted
-  // tails + swept trapezoidal wings, YF-23 V-tail, FB-22 delta, Project
-  // Wingman Chimera dark-grey + orange accents). ONE merged
+  // Aircraft — V2-G REMODEL (27 Nov 2026; refs as M10.5: F-22 Raptor twin
+  // canted tails + swept trapezoidal wings, YF-23 V-tail, FB-22 delta,
+  // Project Wingman Chimera dark-grey + orange accents). ONE merged
   // vertex-colored mesh + twin-jet exhaust glow + one merged nav-light
-  // mesh: still 3 calls. Span still 120 ft, same group interface.
+  // mesh + one merged gear mesh (hidden in flight): still 3 calls in
+  // the air, 4 on the ground. Span still 120 ft, same group interface.
+  // V2-G fixes (parent diagnosis from the 3x zoom crop): nav lights were
+  // unlit r5 balloons; the V-tail was a flat plate with a red roof; the
+  // 4 ft wing vanished edge-on; gear showed in flight; the canopy was a
+  // black ball. Geometry numbers live in aircraft.js (pure, tested).
   const plane = new THREE.Group();
   // Chined stealth fuselage: 12-segment cone (smoother than the old
   // 10-seg one — fewer visible facets), matte charcoal.
@@ -682,52 +688,134 @@ export function buildScene(world) {
   // Thin orange spine stripe — the Nusa identity accent survives the
   // dark livery (Project Wingman Mk.1: "Oh, and don't forget the
   // color ORANGE").
-  const stripeGeo = new THREE.BoxGeometry(2.5, 2, 70);
-  stripeGeo.translate(0, 11, 0);
-  const canopyGeo = new THREE.SphereGeometry(8, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2);
-  canopyGeo.translate(0, 5, 0);
-  // Swept-back wings: each half is a box rotated ±0.29 rad (~17°) about
-  // Y, so the leading edge sweeps back toward the tail (F-22 style).
-  const wingRGeo = new THREE.BoxGeometry(62, 4, 24);
-  wingRGeo.rotateY(0.29);
+  // V2-G3: the stripe FOLLOWS the cone (was a straight 70 ft box at
+  // constant y 11 — the cone tapers 12 -> 0 toward the nose, so the
+  // straight stripe floated up to ~9 ft above the fuselage and read as
+  // a red rod hovering over the plane; proven by the spine-only probe).
+  // Now 40 ft (z -35..+5, ending where the fuselage is still wide
+  // enough: r 5.33 at z +5 vs stripe half-width 1.25), centreline at
+  // r(z) + proud - height/2 so its top sits exactly `proud` (0.5 ft)
+  // above the cone surface along the whole length.
+  const stripe = AIRCRAFT.spineStripe;
+  const stripeGeo = new THREE.BoxGeometry(stripe.width, stripe.height, stripe.length);
+  taperPositions(stripeGeo.attributes.position.array, {
+    axis: 2, from: -stripe.length / 2, to: stripe.length / 2,
+    shiftY: [
+      fuselageRadiusAt(stripe.zCenter - stripe.length / 2) + stripe.proud - stripe.height / 2 - stripe.yBase,
+      fuselageRadiusAt(stripe.zCenter + stripe.length / 2) + stripe.proud - stripe.height / 2 - stripe.yBase,
+    ],
+  });
+  stripeGeo.computeVertexNormals();
+  stripeGeo.translate(0, stripe.yBase, stripe.zCenter);
+  // Canopy — V2-G: low elongated bubble (was an r8 black hemisphere, a
+  // ball on the fuselage). Dome scaled flat (0.5) and long (1.6), base
+  // sunk to y=6 where the fuselage (r ~6.8) is wider than the canopy,
+  // dark blue-grey glass instead of near-black.
+  const canopyGeo = new THREE.SphereGeometry(
+    AIRCRAFT.canopy.radius, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2,
+  );
+  canopyGeo.scale(AIRCRAFT.canopy.scaleX, AIRCRAFT.canopy.scaleY, AIRCRAFT.canopy.scaleZ);
+  canopyGeo.translate(0, AIRCRAFT.canopy.y, AIRCRAFT.canopy.z);
+  // Swept-back wings — V2-G: tapered, not a flat plate. Each half tapers
+  // 7 ft thick / 27.6 ft chord at the root to 3 ft / 14.4 ft at the tip
+  // (taperPositions, aircraft.js), then a small dihedral (~3.4 deg) so
+  // the top surface reads from the chase camera instead of vanishing
+  // edge-on. Sweep stays ±0.29 rad (~17 deg), span stays 120 ft.
+  const wing = AIRCRAFT.wing;
+  const wingRGeo = new THREE.BoxGeometry(62, wing.thickness, wing.chord);
+  taperPositions(wingRGeo.attributes.position.array, {
+    axis: 0, from: -wing.halfSpan, to: wing.halfSpan,
+    scaleY: [wing.rootThickScale, wing.tipThickScale],
+    scaleZ: [wing.rootChordScale, wing.tipChordScale],
+  });
+  wingRGeo.computeVertexNormals();
+  wingRGeo.rotateY(wing.sweep);
+  wingRGeo.rotateZ(wing.dihedral);
   wingRGeo.translate(30.5, 0, -5);
-  const wingLGeo = new THREE.BoxGeometry(62, 4, 24);
-  wingLGeo.rotateY(-0.29);
+  const wingLGeo = new THREE.BoxGeometry(62, wing.thickness, wing.chord);
+  taperPositions(wingLGeo.attributes.position.array, {
+    axis: 0, from: wing.halfSpan, to: -wing.halfSpan,
+    scaleY: [wing.rootThickScale, wing.tipThickScale],
+    scaleZ: [wing.rootChordScale, wing.tipChordScale],
+  });
+  wingLGeo.computeVertexNormals();
+  wingLGeo.rotateY(-wing.sweep);
+  wingLGeo.rotateZ(-wing.dihedral);
   wingLGeo.translate(-30.5, 0, -5);
-  // Orange wingtip caps, swept to match.
+  // Orange wingtip caps, swept to match — V2-G: tilted with the dihedral
+  // and raised to meet the lifted tip (tip centre ~y 1.8).
   const tipRGeo = new THREE.BoxGeometry(8, 4.5, 12);
-  tipRGeo.rotateY(0.29);
-  tipRGeo.translate(56, 0, -13);
+  tipRGeo.rotateY(wing.sweep);
+  tipRGeo.rotateZ(wing.dihedral);
+  tipRGeo.translate(59, 1.8, -13.9);
   const tipLGeo = new THREE.BoxGeometry(8, 4.5, 12);
-  tipLGeo.rotateY(-0.29);
-  tipLGeo.translate(-56, 0, -13);
-  // Orange trailing-edge strips — the wing reads as a thin line from
-  // dead behind, so the rear edge carries the Nusa orange (visible in
-  // shots 1/3 where the top stripe is hidden).
+  tipLGeo.rotateY(-wing.sweep);
+  tipLGeo.rotateZ(-wing.dihedral);
+  tipLGeo.translate(-59, 1.8, -13.9);
+  // Orange trailing-edge strips — V2-G: same dihedral tilt, re-seated on
+  // the thicker wing's top surface (mid-span top ~y 2.4).
+  // V2-G2: the strip must FOLLOW the tapered trailing edge — a straight
+  // strip at fixed z floated 4 ft behind the tip (the red stick in the
+  // probe-1 crop). Its centreline now tapers with the chord (root
+  // trailing -13.8, tip -7.2, wing-local z) and it pivots about the
+  // wing centre (x 30.5), so it sits on the trailing edge along the
+  // whole span instead of floating behind the tip.
   const trailRGeo = new THREE.BoxGeometry(62, 2, 2);
-  trailRGeo.rotateY(0.29);
-  trailRGeo.translate(27.1, 3, -16.5);
+  taperPositions(trailRGeo.attributes.position.array, {
+    axis: 0, from: -wing.halfSpan, to: wing.halfSpan,
+    shiftZ: [AIRCRAFT.trailStrip.rootZ, AIRCRAFT.trailStrip.tipZ],
+  });
+  trailRGeo.computeVertexNormals();
+  trailRGeo.rotateY(wing.sweep);
+  trailRGeo.rotateZ(wing.dihedral);
+  trailRGeo.translate(AIRCRAFT.trailStrip.pivotX, AIRCRAFT.trailStrip.y, -5);
   const trailLGeo = new THREE.BoxGeometry(62, 2, 2);
-  trailLGeo.rotateY(-0.29);
-  trailLGeo.translate(-27.1, 3, -16.5);
+  taperPositions(trailLGeo.attributes.position.array, {
+    axis: 0, from: wing.halfSpan, to: -wing.halfSpan,
+    shiftZ: [AIRCRAFT.trailStrip.rootZ, AIRCRAFT.trailStrip.tipZ],
+  });
+  trailLGeo.computeVertexNormals();
+  trailLGeo.rotateY(-wing.sweep);
+  trailLGeo.rotateZ(-wing.dihedral);
+  trailLGeo.translate(-AIRCRAFT.trailStrip.pivotX, AIRCRAFT.trailStrip.y, -5);
   // V-tail (YF-23/F-22 canted twins): two fins canted ±28° outward —
   // no vertical fin, no horizontal tailplane, so the dead-rear "red
   // cross" read is gone by construction. (28°, not 35°: the steeper
   // cant splayed like spider legs in the first capture.)
+  // V2-G: each fin tapers to 45% chord at the tip and sweeps 6 ft aft,
+  // so it reads as a fin, not a flat plate.
+  const fin = AIRCRAFT.fin;
   const finRGeo = new THREE.BoxGeometry(3, 18, 18);
-  finRGeo.rotateZ(-0.49);
+  taperPositions(finRGeo.attributes.position.array, {
+    axis: 1, from: -9, to: 9,
+    scaleZ: [1, fin.tipChordScale],
+    shiftZ: [0, -fin.sweepBack],
+  });
+  finRGeo.computeVertexNormals();
+  finRGeo.rotateZ(-fin.cant);
   finRGeo.translate(10, 11, -38);
   const finLGeo = new THREE.BoxGeometry(3, 18, 18);
-  finLGeo.rotateZ(0.49);
+  taperPositions(finLGeo.attributes.position.array, {
+    axis: 1, from: -9, to: 9,
+    scaleZ: [1, fin.tipChordScale],
+    shiftZ: [0, -fin.sweepBack],
+  });
+  finLGeo.computeVertexNormals();
+  finLGeo.rotateZ(fin.cant);
   finLGeo.translate(-10, 11, -38);
-  // Orange fin-tip stripes, same cant (stripe centre = fin centre +
-  // canted-up × 11.5, so the stripe caps the fin tip exactly).
-  const finStripeRGeo = new THREE.BoxGeometry(3.5, 5, 19);
-  finStripeRGeo.rotateZ(-0.49);
-  finStripeRGeo.translate(15.4, 21.1, -38);
-  const finStripeLGeo = new THREE.BoxGeometry(3.5, 5, 19);
-  finStripeLGeo.rotateZ(0.49);
-  finStripeLGeo.translate(-15.4, 21.1, -38);
+  // Orange fin-tip caps — V2-G: small caps on the tapered tip (was a
+  // 5 ft tall, 19 ft long slab — the "red roof" in the zoom crop).
+  // Fin tip centre sits at (±14.2, 18.9, -44) after the cant.
+  // V2-G2: the cap was still wider than the fin tip (3.6 vs 3) so it
+  // overhung and read as a roof. Now narrower than the tip (2.8 vs 3)
+  // and shorter (7 vs 8.1), sunk so only ~1 ft shows: an orange tip
+  // edge, not a slab.
+  const finStripeRGeo = new THREE.BoxGeometry(fin.capWidth, fin.stripeHeight, fin.capDepth);
+  finStripeRGeo.rotateZ(-fin.cant);
+  finStripeRGeo.translate(14.2, 19.0, -44);
+  const finStripeLGeo = new THREE.BoxGeometry(fin.capWidth, fin.stripeHeight, fin.capDepth);
+  finStripeLGeo.rotateZ(fin.cant);
+  finStripeLGeo.translate(-14.2, 19.0, -44);
   // Twin exhaust nozzles (dark, small — the first r=5/6 nozzles read as
   // two black holes from behind; the glow disc now halos them instead).
   const nozzleRGeo = new THREE.CylinderGeometry(3.5, 4.5, 8, 8);
@@ -755,7 +843,7 @@ export function buildScene(world) {
   const planeBody = mergeParts([
     { geo: fuselageGeo, color: PALETTE.stealth },
     { geo: stripeGeo, color: PALETTE.planeOrange },
-    { geo: canopyGeo, color: 0x0a0f16 },
+    { geo: canopyGeo, color: AIRCRAFT.canopy.color },
     { geo: wingRGeo, color: PALETTE.stealth },
     { geo: wingLGeo, color: PALETTE.stealth },
     { geo: tipLGeo, color: PALETTE.planeOrange },
@@ -768,14 +856,23 @@ export function buildScene(world) {
     { geo: finStripeLGeo, color: PALETTE.planeOrange },
     { geo: nozzleRGeo, color: PALETTE.stealthDark },
     { geo: nozzleLGeo, color: PALETTE.stealthDark },
+  ], { roughness: 0.7 });
+  planeBody.castShadow = true;
+  plane.add(planeBody);
+  // Landing gear — V2-G: its own merged mesh, NOT part of the body.
+  // updateScene hides it in flight (gearDown in aircraft.js: down on
+  // the ground / on final, up in cruise), so the wheels no longer read
+  // as black balls under the fuselage in the play shot. +1 draw call
+  // only when visible (ground shots: 27-29/30, still inside budget).
+  const planeGear = mergeParts([
     { geo: legL, color: PALETTE.gearDark },
     { geo: legR, color: PALETTE.gearDark },
     { geo: legL2, color: PALETTE.gearDark },
     { geo: legR2, color: PALETTE.gearDark },
     ...wheelGeos.map((geo) => ({ geo, color: PALETTE.gearDark })),
   ], { roughness: 0.7 });
-  planeBody.castShadow = true;
-  plane.add(planeBody);
+  planeGear.castShadow = true;
+  plane.add(planeGear);
   // Twin-jet exhaust glow — M10.5/M10-fix: a stealth jet has no
   // propeller. Two small radial-gradient discs, one directly behind
   // each dark nozzle (x ±7, r 7.5), sharing one AdditiveBlending
@@ -800,15 +897,15 @@ export function buildScene(world) {
   exhaustL.rotation.y = Math.PI;
   plane.add(exhaustL);
   // Nav lights — one merged unlit mesh (green left, red right, white
-  // tail). M9: radius 3 -> 5 so they read at chase distance. M10-fix:
-  // the tail light stays r2.5 — at r5 its unlit white sphere sat dead
-  // centre between the nozzles and read as a white ball, which the
-  // glow-disc split alone could not fix.
-  const navLGeo = new THREE.SphereGeometry(5, 8, 6);
-  navLGeo.translate(-60, 0, -7);
-  const navRGeo = new THREE.SphereGeometry(5, 8, 6);
-  navRGeo.translate(60, 0, -7);
-  const navTGeo = new THREE.SphereGeometry(2.5, 8, 6);
+  // tail). V2-G: r2 wingtips + r1.5 tail, set into the wingtip caps'
+  // outer faces (x ±63.5, y 1.8 — the dihedral-lifted tip) instead of
+  // r5 spheres floating at the tip (they read as balloons; the M10-fix
+  // already cut the tail light for the same reason).
+  const navLGeo = new THREE.SphereGeometry(AIRCRAFT.navLightRadius, 8, 6);
+  navLGeo.translate(-63.5, 1.8, -15);
+  const navRGeo = new THREE.SphereGeometry(AIRCRAFT.navLightRadius, 8, 6);
+  navRGeo.translate(63.5, 1.8, -15);
+  const navTGeo = new THREE.SphereGeometry(AIRCRAFT.navTailRadius, 8, 6);
   navTGeo.translate(0, 2, -44);
   const navLights = mergeParts([
     { geo: navLGeo, color: 0x00ff66 },
@@ -878,7 +975,7 @@ export function buildScene(world) {
   const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 60000);
   camera.position.set(0, 200, -800);
 
-  return { scene, camera, sun, plane, exhaustDisc, ringMeshes, snapped: false };
+  return { scene, camera, sun, plane, gear: planeGear, exhaustDisc, ringMeshes, snapped: false };
 }
 
 const _cockpitPos = new THREE.Vector3();
@@ -900,6 +997,10 @@ export function updateScene(view, world, dt, camOrbit, cockpit = false) {
   // opacity write drives both; range capped at 0.5 so the glow never
   // reads as a solid ball again.
   view.exhaustDisc.material.opacity = 0.2 + p.throttle * 0.3;
+  // Landing gear: down on the ground / on final approach, up in cruise
+  // (V2-G, gearDown in aircraft.js). The play/start shots fly at 700 ft,
+  // the landing/end shots freeze on final at ~120-350 ft.
+  view.gear.visible = gearDown(p);
   // Rings spin slowly; collected rings hide.
   for (let i = 0; i < view.ringMeshes.length; i += 1) {
     view.ringMeshes[i].rotation.z += dt * 0.4;
