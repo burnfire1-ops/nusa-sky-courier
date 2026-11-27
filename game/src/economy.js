@@ -1,19 +1,37 @@
 // Courier economy — KR currency, landing rank. (TDD: tests/economy.test.js)
 // M12-clean N2: the rank-point table lives in config.js (LANDING_POINTS).
-import { LANDING_POINTS } from './config.js';
+import { LANDING_POINTS, UPGRADES } from './config.js';
 // M12-clean N3: the hangar shop (UPGRADES/buyUpgrade) is deleted — it had
 // no UI, so KR was unspendable in production and the code was only kept
 // alive by its own tests. Deleted together with those tests.
+// V2-B: the shop is back, WITH a UI — the briefing overlay carries the
+// hangar panel (main.js renderShop), so KR is spendable in production.
 export const RANKS = ['PEMULA', 'PERAK', 'EMAS', 'LEGENDA'];
 export const RANK_POINTS = { PEMULA: 0, PERAK: 100, EMAS: 250, LEGENDA: 500 };
 
 export function createEconomy() {
-  return { kr: 0, rank: 'PEMULA', rankPoints: 0 };
+  return { kr: 0, rank: 'PEMULA', rankPoints: 0, upgrades: [] };
 }
 
 export function addReward(econ, kr) {
   econ.kr += kr;
   return econ.kr;
+}
+
+/**
+ * Buy one hangar upgrade with KR. Returns { ok } or { ok: false, reason }.
+ * 'unknown' = no such upgrade, 'owned' = already bought, 'funds' = KR
+ * short. A bought upgrade stays in econ.upgrades (persisted by main.js)
+ * and is applied by createWorld for the next mission.
+ */
+export function buyUpgrade(econ, id) {
+  const item = UPGRADES.find((u) => u.id === id);
+  if (!item) return { ok: false, reason: 'unknown' };
+  if (econ.upgrades.includes(id)) return { ok: false, reason: 'owned' };
+  if (econ.kr < item.price) return { ok: false, reason: 'funds' };
+  econ.kr -= item.price;
+  econ.upgrades.push(id);
+  return { ok: true };
 }
 
 export function landingRank({ vs, speed, rings, ringsTotal, hull }) {

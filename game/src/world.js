@@ -6,7 +6,6 @@ import { clamp, DEG } from './util.js';
 import { FLIGHT, ISLANDS } from './config.js';
 
 export const STALL_SPEED = FLIGHT.stallSpeed;
-export const MAX_SPEED = FLIGHT.maxSpeed;
 export const RUNWAY = { x: 0, z0: -3000, z1: 0, halfWidth: 100 };
 
 export function mulberry32(seed) {
@@ -24,7 +23,7 @@ export function mulberry32(seed) {
 // 'ring' (hardcoded at every call site, even on day-2 precision / day-3
 // storm) and world.mission was never read — the field lied on days 2–3.
 // All three mission kinds need the same 3 rings, so they are always built.
-export function createWorld({ seed = 1 } = {}) {
+export function createWorld({ seed = 1, upgrades = [] } = {}) {
   const rand = mulberry32(seed);
   // M12-clean N4: ring x/z come from ISLANDS — the K1 root cause was
   // these coordinates living in two places (world.js vs config.js).
@@ -38,8 +37,16 @@ export function createWorld({ seed = 1 } = {}) {
     x: island.x, y: RING_HEIGHTS[i], z: island.z,
     r: FLIGHT.ringRadius, collected: false,
   }));
+  // V2-B: hangar upgrades, derived once here so stepWorld stays pure
+  // arithmetic on world fields. Defaults equal the stock FLIGHT values.
+  const owned = new Set(upgrades);
   return {
     seed, time: 0, rand,
+    maxSpeed: owned.has('turbine') ? FLIGHT.maxSpeed + 25 : FLIGHT.maxSpeed,
+    speedClampMax: owned.has('turbine') ? FLIGHT.speedClampMax + 25 : FLIGHT.speedClampMax,
+    fuelBurnScale: owned.has('fuel') ? 1 / 1.4 : 1,
+    landingVsMax: owned.has('glider') ? FLIGHT.landingVsMax * 1.4 : FLIGHT.landingVsMax,
+    landingSpeedMax: owned.has('glider') ? FLIGHT.landingSpeedMax * 1.4 : FLIGHT.landingSpeedMax,
     plane: {
       x: 0, y: 0, z: -2500, heading: 0, pitch: 0, roll: 0,
       speed: 0, vs: 0, throttle: 0,
@@ -71,8 +78,8 @@ export function stepWorld(world, dt, input) {
   p.throttle += (wantThrottle - p.throttle) * Math.min(1, dt * 2);
   if (p.fuel <= 0) p.throttle = 0;
 
-  // Fuel burn scales with throttle.
-  p.fuel = Math.max(0, p.fuel - (FLIGHT.burnBase + p.throttle * FLIGHT.burnThrottle) * dt);
+  // Fuel burn scales with throttle (and with Fuel Pods, V2-B).
+  p.fuel = Math.max(0, p.fuel - (FLIGHT.burnBase + p.throttle * FLIGHT.burnThrottle) * world.fuelBurnScale * dt);
 
   // Pitch: move toward the target; below stall speed the nose damps down.
   const wantPitch = clamp(input.pitch ?? 0, FLIGHT.pitchMin, FLIGHT.pitchMax);
@@ -86,10 +93,11 @@ export function stepWorld(world, dt, input) {
   p.heading += (p.roll / FLIGHT.rollMaxDeg) * FLIGHT.turnRateDegPerSec * dt * clamp(p.speed / FLIGHT.turnRefSpeed, 0, 1);
   p.heading = ((p.heading % 360) + 360) % 360;
 
-  // Speed: throttle pulls toward its top speed, pitch costs speed.
-  p.speed += (p.throttle * MAX_SPEED - p.speed) * 0.3 * dt
+  // Speed: throttle pulls toward its top speed (Turbine Boost raises
+  // world.maxSpeed, V2-B), pitch costs speed.
+  p.speed += (p.throttle * world.maxSpeed - p.speed) * 0.3 * dt
     - Math.sin(p.pitch * DEG) * 8 * dt;
-  p.speed = clamp(p.speed, 0, FLIGHT.speedClampMax);
+  p.speed = clamp(p.speed, 0, world.speedClampMax);
 
   // Lift scales with speed squared; below lift the plane sinks.
   const speedFps = p.speed * FLIGHT.ktsToFps;
@@ -120,14 +128,16 @@ export function stepWorld(world, dt, input) {
     p.y = 0;
     const onRunway = Math.abs(p.x - RUNWAY.x) <= RUNWAY.halfWidth
       && p.z >= RUNWAY.z0 && p.z <= RUNWAY.z1;
-    const gentle = Math.abs(p.vs) <= FLIGHT.landingVsMax && p.speed < FLIGHT.landingSpeedMax;
+    // Gentle-landing limits come from the world (Reinforced Glider
+    // raises them x1.4, V2-B); stock values equal FLIGHT.
+    const gentle = Math.abs(p.vs) <= world.landingVsMax && p.speed < world.landingSpeedMax;
     if (p.airborne && onRunway && gentle) {
       p.landed = true;
       p.airborne = false;
       p.vs = 0;
     } else if (p.airborne) {
-      if (Math.abs(p.vs) > FLIGHT.landingVsMax) p.hull -= (Math.abs(p.vs) - FLIGHT.landingVsMax) * FLIGHT.damageVsFactor;
-      if (p.speed > FLIGHT.landingSpeedMax) p.hull -= (p.speed - FLIGHT.landingSpeedMax) * FLIGHT.damageSpeedFactor;
+      if (Math.abs(p.vs) > world.landingVsMax) p.hull -= (Math.abs(p.vs) - world.landingVsMax) * FLIGHT.damageVsFactor;
+      if (p.speed > world.landingSpeedMax) p.hull -= (p.speed - world.landingSpeedMax) * FLIGHT.damageSpeedFactor;
       if (!onRunway) p.hull -= FLIGHT.damageOffRunway;
       p.vs = 0;
       p.speed *= 0.8;

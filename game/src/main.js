@@ -3,7 +3,8 @@
 // courier-day loop, the render loop and the ?shot= staging mode.
 import * as THREE from 'three';
 import { createWorld, stepWorld } from './world.js';
-import { createEconomy, addReward, applyLanding } from './economy.js';
+import { createEconomy, addReward, applyLanding, buyUpgrade } from './economy.js';
+import { UPGRADES } from './config.js';
 import { MISSIONS, createMissionRun, updateMission, missionProgress } from './missions.js';
 import { createRenderer, buildScene, updateScene, perfStats, onResize } from './render.js';
 import { updateHud, updateCockpit, showToast } from './hud.js';
@@ -22,6 +23,7 @@ let world;
 let view;
 let run = null;
 let day = 1;
+let mission = MISSIONS[0];
 let screen = 'title';
 let lastCollected = 0;
 let framesRendered = 0;
@@ -56,26 +58,70 @@ function saveBest() {
     const best = loadBest();
     best.rank = econ.rank;
     best.kr = Math.max(best.kr || 0, econ.kr);
+    best.upgrades = [...econ.upgrades];
     localStorage.setItem('nusa-best', JSON.stringify(best));
   } catch {
     // Storage unavailable — the game still plays.
   }
 }
 
+// V2-B hangar shop (game-ui-ux): rows rebuilt from econ state each time
+// the briefing shows or a purchase lands. Buttons are disabled when the
+// upgrade is owned or KR is short — never a dead click.
+function renderShop() {
+  const krNode = document.getElementById('shop-kr');
+  if (krNode) krNode.textContent = String(econ.kr);
+  const list = document.getElementById('shop-list');
+  if (!list) return;
+  list.replaceChildren(...UPGRADES.map((item) => {
+    const row = document.createElement('div');
+    row.className = 'shop-row';
+    const owned = econ.upgrades.includes(item.id);
+    const afford = econ.kr >= item.price;
+    const info = document.createElement('div');
+    info.className = 'info';
+    const name = document.createElement('b');
+    name.textContent = item.name;
+    const desc = document.createElement('span');
+    desc.textContent = ` — ${item.desc} · ${item.price} KR`;
+    info.append(name, desc);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.dataset.id = item.id;
+    btn.disabled = owned || !afford;
+    btn.textContent = owned ? 'TERPASANG' : afford ? 'BELI' : 'KR KURANG';
+    row.append(info, btn);
+    return row;
+  }));
+}
+
+document.getElementById('shop-list')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-id]');
+  if (!btn || btn.disabled) return;
+  if (buyUpgrade(econ, btn.dataset.id).ok) {
+    saveBest();
+    renderShop();
+  }
+});
+
 function startDay() {
-  const mission = MISSIONS[(day - 1) % MISSIONS.length];
-  world = createWorld({ seed: day });
-  view = buildScene(world);
-  run = createMissionRun(mission, world);
+  mission = MISSIONS[(day - 1) % MISSIONS.length];
   lastCollected = 0;
   setThrottle(0);
   document.getElementById('brief-title').textContent = `DAY ${day} — ${mission.title}`;
   document.getElementById('brief-body').textContent = mission.brief;
   document.getElementById('brief-reward').textContent = `Reward: ${mission.reward} KR on completion`;
+  renderShop();
   showScreen('briefing');
 }
 
 function startMission() {
+  // V2-B fix: the world is built HERE, not in startDay — the briefing is
+  // where upgrades are bought, so a world built in startDay would predate
+  // the purchase and the upgrade would not apply until the next day.
+  world = createWorld({ seed: day, upgrades: econ.upgrades });
+  view = buildScene(world);
+  run = createMissionRun(mission, world);
   ensureAudio();
   showScreen('play');
 }
@@ -147,6 +193,9 @@ window.addEventListener('resize', () => {
 
 const best = loadBest();
 document.getElementById('title-best').textContent = best.rank || 'PEMULA';
+// V2-B: owned upgrades persist across sessions (KR itself is per
+// campaign and starts at 0 — only the unlocks carry over).
+econ.upgrades = Array.isArray(best.upgrades) ? [...best.upgrades] : [];
 
 // Shot staging mode: deterministic scene, a few frames, then report.
 if (shotName) {

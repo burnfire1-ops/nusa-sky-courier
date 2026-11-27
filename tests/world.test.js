@@ -115,11 +115,47 @@ test('flying through a ring collects it', () => {
   assert.equal(w.collected, 1);
 });
 
-// M12-fix K1: every ring must clear the peak of any island it sits over —
-// ring 3 used to be y=700 with its whole disc below Hijau's 900 ft peak,
-// so the mission could only be finished by flying through the mountain.
-// Conservative check (ring bottom vs island peak, not the slope profile):
-// a ring that passes this is clear of the terrain everywhere.
+// V2-B (cut 3 — hangar shop): upgrade effects are real, wired into the
+// flight model — Turbine raises the speed ceiling, Fuel Pods stretch the
+// tank, Reinforced Glider tolerates a harder touchdown.
+test('Turbine Boost raises the top speed past the stock 150 kts ceiling', () => {
+  const base = fresh();
+  const fast = createWorld({ seed: 1, upgrades: ['turbine'] });
+  for (let i = 0; i < 30; i += 1) {
+    stepWorld(base, 1, { throttle: 1, pitch: 0, roll: 0 });
+    stepWorld(fast, 1, { throttle: 1, pitch: 0, roll: 0 });
+  }
+  assert.ok(base.plane.speed <= 155, `stock should cap near 150, got ${base.plane.speed}`);
+  assert.ok(fast.plane.speed >= 165, `turbine should pass 165, got ${fast.plane.speed}`);
+});
+
+test('Fuel Pods burn slower: same full-throttle hour leaves more fuel', () => {
+  const base = fresh();
+  const pods = createWorld({ seed: 1, upgrades: ['fuel'] });
+  for (const w of [base, pods]) { w.plane.y = 500; w.plane.airborne = true; w.plane.speed = 100; }
+  for (let i = 0; i < 60; i += 1) {
+    stepWorld(base, 1, { throttle: 1, pitch: 0, roll: 0 });
+    stepWorld(pods, 1, { throttle: 1, pitch: 0, roll: 0 });
+  }
+  assert.ok(pods.plane.fuel - base.plane.fuel > 4,
+    `pods ${pods.plane.fuel} should keep >4 more fuel than base ${base.plane.fuel}`);
+});
+
+test('Reinforced Glider lands a touchdown that would damage the stock plane', () => {
+  const setup = (upgrades) => {
+    const w = createWorld({ seed: 1, upgrades });
+    w.plane.speed = 80; w.plane.y = 0.5; w.plane.vs = -10; w.plane.airborne = true;
+    w.plane.x = 0; w.plane.z = -1500; // over the runway
+    for (let i = 0; i < 10 && w.plane.y > 0; i += 1) stepWorld(w, 0.05, { throttle: 0, pitch: 0, roll: 0 });
+    return w;
+  };
+  const stock = setup([]);
+  assert.equal(stock.plane.landed, false, 'stock |vs| ~8.7 exceeds the 8 ft/s limit');
+  assert.ok(stock.plane.hull < 100, `stock should take damage, hull=${stock.plane.hull}`);
+  const glider = setup(['glider']);
+  assert.equal(glider.plane.landed, true, 'glider tolerates |vs| ~8.7 (limit 11.2)');
+  assert.equal(glider.plane.hull, 100);
+});
 test('every ring clears the peak of the island it sits over', async () => {
   const { ISLANDS } = await import('../game/src/config.js');
   const w = fresh();

@@ -142,6 +142,16 @@ export const HUD_TUNING = {
 // Landing-rank points (economy.js reads these; values unchanged).
 export const LANDING_POINTS = { S: 100, A: 70, B: 40, C: 20 };
 
+// V2-B hangar shop (cut 3): exactly 3 upgrades. The cheapest costs no
+// more than the Mission 1 reward (120 KR) so one is buyable after day 1.
+// Effects are wired into world.js (not cosmetic): turbine +25 kts max
+// speed, fuel pods burn 1/1.4x, glider landing limits x1.4.
+export const UPGRADES = [
+  { id: 'glider', name: 'Reinforced Glider', desc: 'Toleransi hard landing +40%', price: 120 },
+  { id: 'fuel', name: 'Fuel Pods', desc: 'Jangkauan fuel +40%', price: 200 },
+  { id: 'turbine', name: 'Turbine Boost', desc: 'Max speed +25 kts (150 → 175)', price: 300 },
+];
+
 // M8 landmarks — visual only, positions chosen on existing terrain/runway.
 // Lighthouse sits on Bara's south shore; viaduct spans Tanjung's south bay;
 // hangar + windsock + ILS sit beside the runway strip (sea-plane base apron).

@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createEconomy, addReward, landingRank, applyLanding, RANKS } from '../game/src/economy.js';
+import { createEconomy, addReward, landingRank, applyLanding, RANKS, buyUpgrade } from '../game/src/economy.js';
 
 test('fresh economy starts at zero KR, rank PEMULA', () => {
   const e = createEconomy();
@@ -25,4 +25,43 @@ test('rank points accumulate and promote the courier tier', () => {
   assert.equal(RANKS[RANKS.length - 1], 'LEGENDA');
   for (let i = 0; i < 6; i += 1) applyLanding(e, { vs: -2, speed: 70, rings: 3, ringsTotal: 3, hull: 100 });
   assert.equal(e.rank, 'LEGENDA');
+});
+
+// V2-B (cut 3 — hangar shop): 3 upgrades, bought with KR, effects are
+// real (wired into world.js), cheapest affordable after Mission 1.
+test('buyUpgrade refuses without enough KR and leaves KR untouched', () => {
+  const e = createEconomy();
+  const r = buyUpgrade(e, 'glider');
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, 'funds');
+  assert.equal(e.kr, 0);
+  assert.deepEqual(e.upgrades, []);
+});
+
+test('buyUpgrade deducts KR, records the upgrade, refuses a second buy', () => {
+  const e = createEconomy();
+  addReward(e, 120);
+  const r = buyUpgrade(e, 'glider');
+  assert.equal(r.ok, true);
+  assert.equal(e.kr, 0);
+  assert.deepEqual(e.upgrades, ['glider']);
+  const again = buyUpgrade(e, 'glider');
+  assert.equal(again.ok, false);
+  assert.equal(again.reason, 'owned');
+});
+
+test('buyUpgrade refuses an unknown upgrade id', () => {
+  const e = createEconomy();
+  addReward(e, 9999);
+  assert.equal(buyUpgrade(e, 'warp-drive').ok, false);
+  assert.equal(buyUpgrade(e, 'warp-drive').reason, 'unknown');
+});
+
+test('cheapest upgrade costs no more than the Mission 1 reward', async () => {
+  const { UPGRADES } = await import('../game/src/config.js');
+  const { MISSIONS } = await import('../game/src/missions.js');
+  assert.equal(UPGRADES.length, 3, 'exactly 3 upgrades (cut 3)');
+  const cheapest = Math.min(...UPGRADES.map((u) => u.price));
+  assert.ok(cheapest <= MISSIONS[0].reward,
+    `cheapest ${cheapest} KR must be <= Mission 1 reward ${MISSIONS[0].reward} KR`);
 });

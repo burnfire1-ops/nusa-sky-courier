@@ -21,6 +21,18 @@
   .panel .sub { color: #c9b8a3; font-size: 13px; }
   .panel button { margin-top: 16px; padding: 12px 28px; font-size: 16px; font-weight: 700; color: #1a1426; background: var(--gold); border: 0; border-radius: 8px; cursor: pointer; }
   .panel button:hover { background: #ffd35c; }
+  /* V2-B hangar shop (game-ui-ux: rows anchored left, one straight
+     edge; buy button at the row end, disabled state visible). */
+  #shop { margin-top: 18px; border-top: 1px solid rgba(232, 106, 44, 0.5); padding-top: 12px; text-align: left; }
+  #shop h3 { margin: 0 0 4px; font-size: 15px; letter-spacing: 2px; color: var(--gold); }
+  #shop .sub { margin: 0 0 8px; }
+  .shop-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; font-size: 13px; line-height: 1.4; }
+  .shop-row .info { flex: 1; }
+  .shop-row .info b { color: #f2e3c6; }
+  .shop-row .info span { color: #c9b8a3; }
+  .shop-row button { margin-top: 0; padding: 7px 14px; font-size: 13px; white-space: nowrap; }
+  .shop-row button:disabled { background: #5a5348; color: #b8ab98; cursor: default; }
+  .shop-row button:disabled:hover { background: #5a5348; }
   #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; font-variant-numeric: tabular-nums; }
   #hud .top-left { position: absolute; top: 14px; left: 16px; background: rgba(8, 26, 16, 0.72); border: 1px solid rgba(var(--hud-green-rgb), 0.55); border-radius: 0; clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); padding: 10px 14px; font-size: 15px; line-height: 1.7; }
   #hud .top-left b { color: var(--hud-green); }
@@ -112,6 +124,11 @@
     <h2 id="brief-title">BRIEFING</h2>
     <p id="brief-body">—</p>
     <p class="sub" id="brief-reward">—</p>
+    <div id="shop">
+      <h3>HANGAR — UPGRADE</h3>
+      <p class="sub">Saldo: <b id="shop-kr">0</b> KR &middot; upgrade permanen, berlaku mulai misi berikutnya</p>
+      <div id="shop-list"></div>
+    </div>
     <button id="btn-start-mission">START DELIVERY</button>
   </div>
 </div>
