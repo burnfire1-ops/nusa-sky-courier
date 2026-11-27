@@ -228,8 +228,15 @@ if (shotName) {
   // yaw 10° shows a real three-quarter rear profile (fuselage length +
   // swept wing + V-tail from the side) while the ring stays centred —
   // the lookAt ignores yaw, so the target does not drift.
+  // V2-F: play staging is now 30 s (ring 548 ft ahead, ~3.3x the v2
+  // size) — at that range the ring's bottom dips into the plane's
+  // silhouette at pitch 0 (probe gap -35 px). Pitch +40 RAISES the
+  // camera (opposite direction from the V2-D -80 failure: lowering the
+  // camera occludes, raising it clears) and opens a 26 px gap while the
+  // ring stays fully in frame; the higher camera also pulls more lava
+  // slope into the lower frame. Verified by probe-frame.mjs, not by eye.
   const shotOrbit = shotName === 'play'
-    ? { yaw: 10, pitch: 0, zoom: 40 }
+    ? { yaw: 10, pitch: 40, zoom: 40 }
     : shotName === 'landing'
       ? { yaw: 2, pitch: -80, zoom: 40 }
       : shotName === 'end' ? { yaw: 0, pitch: 0, zoom: 40 } : { yaw: 0, pitch: 0 };

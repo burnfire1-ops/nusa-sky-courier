@@ -88,7 +88,16 @@ export const FLIGHT = {
 export const SHOTS = {
   sample: 1 / 30,
   startSeconds: 5,
-  playSeconds: 18,
+  // V2-F lever 2 (bank): the play shot stages in two legs — leg 1 flies
+  // at a waypoint beside ring 1 (dx west, dz south of it), leg 2 switches
+  // onto the ring when within playSwitchDist and freezes playLeg2Seconds
+  // later, mid-turn (roll ~19 deg). playLeg1Cap is a safety cap only;
+  // the switch happens at ~28.6 s. (playSeconds retired: the staging
+  // time is now set by the waypoint geometry, not a fixed duration.)
+  playWaypoint: { dx: -600, dz: -200 },
+  playSwitchDist: 600,
+  playLeg2Seconds: 1.5,
+  playLeg1Cap: 40,
   landingSeconds: 40,
   spawnZ: -2500,
   startSpeed: 100,

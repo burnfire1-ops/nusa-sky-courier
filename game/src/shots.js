@@ -55,7 +55,27 @@ export function stageShot(name, seed = 1) {
     world.plane.y = SHOTS.playAlt;
     world.plane.airborne = true;
     world.plane.z = SHOTS.spawnZ;
-    for (let i = 0; i < SHOTS.playSeconds / SHOTS.sample; i += 1) {
+    // V2-F lever 2 (bank): two-leg staging. Leg 1 flies at a waypoint
+    // beside ring 1; leg 2 switches onto the ring and freezes 1.5 s
+    // later — mid-turn, banked (~19 deg roll). A straight-in freeze
+    // (V2-F A2) reads static; the bank reads as motion. The waypoint
+    // sits BESIDE the ring, not south of it: a south waypoint switches
+    // early (t1 ~16-20 s) with the ring still 2000+ ft out (ring
+    // 62-88 px); a beside-ring waypoint switches at ~28.6 s with the
+    // ring ~760 ft out (ring ~144 px, probe-bank.mjs + beside-ring
+    // sweep). playLeg1Cap is a safety cap only.
+    const ring1 = world.rings[0];
+    const wp = {
+      x: ring1.x + SHOTS.playWaypoint.dx,
+      y: ring1.y,
+      z: ring1.z + SHOTS.playWaypoint.dz,
+    };
+    for (let i = 0; i < SHOTS.playLeg1Cap / SHOTS.sample; i += 1) {
+      const p = world.plane;
+      if (Math.hypot(p.x - wp.x, p.y - wp.y, p.z - wp.z) < SHOTS.playSwitchDist) break;
+      stepWorld(world, SHOTS.sample, autopilotTo(world, wp.x, wp.y, wp.z));
+    }
+    for (let i = 0; i < SHOTS.playLeg2Seconds / SHOTS.sample; i += 1) {
       const t = nextRingTarget(world);
       if (!t) break;
       stepWorld(world, SHOTS.sample, autopilotTo(world, t.x, t.y, t.z));

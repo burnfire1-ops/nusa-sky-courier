@@ -62,3 +62,22 @@ test('autopilotTo clamps pitch to the staging envelope', () => {
   w.plane.y = 5000;
   assert.equal(autopilotTo(w, 0, 100, 10000).pitch, -8);
 });
+
+// V2-F lever 2 (bank) — supersedes the lever-1 A2 test (straight-in,
+// ring <=600 ft): the play shot freezes MID-TURN toward the ring. Leg 1
+// flies at a waypoint 600 ft west / 200 ft south of ring 1; leg 2
+// switches onto the ring and freezes 1.5 s later, while the plane is
+// still rolling right (probe: roll 18.9 deg, ring 756 ft out, ~144 px).
+// A straight-in freeze reads static; the bank reads as motion. The ring
+// is smaller than A2's 230 px — the trade is deliberate: motion over size.
+test('play shot freezes mid-turn toward the ring, banked, ring close and uncollected', () => {
+  const { world } = stageShot('play', 1);
+  const p = world.plane;
+  assert.equal(p.airborne, true, 'plane must still be airborne');
+  assert.equal(world.collected, 0, `rings collected=${world.collected}`);
+  const next = world.rings.find((r) => !r.collected);
+  const dist = Math.hypot(p.x - next.x, p.y - next.y, p.z - next.z);
+  assert.ok(dist <= 900, `next ring ${Math.round(dist)} ft away, want <= 900`);
+  assert.ok(dist > 150, `next ring ${Math.round(dist)} ft away, want > ring radius 150`);
+  assert.ok(p.roll >= 15, `roll=${p.roll.toFixed(1)} deg, want >= 15 (banked mid-turn)`);
+});
